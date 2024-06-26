@@ -13,6 +13,7 @@ type Addition struct {
 	Password        string `json:"password"`
 	Token           string `json:"token"`
 	PassUAToUpsteam bool   `json:"pass_ua_to_upsteam" default:"true"`
+	PassIPToUpsteam bool   `json:"pass_ip_to_upsteam" default:"true"`
 }
 
 var config = driver.Config{

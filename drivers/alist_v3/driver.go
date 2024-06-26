@@ -108,19 +108,26 @@ func (d *AListV3) List(ctx context.Context, dir model.Obj, args model.ListArgs) 
 
 func (d *AListV3) Link(ctx context.Context, file model.Obj, args model.LinkArgs) (*model.Link, error) {
 	var resp common.Resp[FsGetResp]
+	headers := map[string]string{
+		"User-Agent": base.UserAgent,
+	}
 	// if PassUAToUpsteam is true, then pass the user-agent to the upstream
-	userAgent := base.UserAgent
 	if d.PassUAToUpsteam {
-		userAgent = args.Header.Get("user-agent")
-		if userAgent == "" {
-			userAgent = base.UserAgent
+		if args.Header.Get("User-Agent") != "" {
+			headers["User-Agent"] = args.Header.Get("User-Agent")
+		}
+	}
+	// if PassIPToUpsteam is true, then pass the client's IP address to the upstream
+	if d.PassIPToUpsteam {
+		if !utils.IsLocalIPAddr(args.IP) {
+			headers["X-Forwarded-For"] = args.IP
 		}
 	}
 	_, err := d.request("/fs/get", http.MethodPost, func(req *resty.Request) {
 		req.SetResult(&resp).SetBody(FsGetReq{
 			Path:     file.GetPath(),
 			Password: d.MetaPassword,
-		}).SetHeader("user-agent", userAgent)
+		}).SetHeader(headers)
 	})
 	if err != nil {
 		return nil, err
