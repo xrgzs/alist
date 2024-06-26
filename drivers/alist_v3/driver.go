@@ -127,7 +127,7 @@ func (d *AListV3) Link(ctx context.Context, file model.Obj, args model.LinkArgs)
 		req.SetResult(&resp).SetBody(FsGetReq{
 			Path:     file.GetPath(),
 			Password: d.MetaPassword,
-		}).SetHeader(headers)
+		}).SetHeaders(headers)
 	})
 	if err != nil {
 		return nil, err
