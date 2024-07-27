@@ -1,7 +1,6 @@
 package _123Share
 
 import (
-	"context"
 	"errors"
 	"fmt"
 	"hash/crc32"
@@ -81,12 +80,13 @@ func (d *Pan123Share) request(url string, method string, callback base.ReqCallba
 	return body, nil
 }
 
-func (d *Pan123Share) getFiles(ctx context.Context, parentId string) ([]File, error) {
+func (d *Pan123Share) getFiles(parentId string) ([]File, error) {
 	page := 1
 	res := make([]File, 0)
 	for {
-		if err := d.APIRateLimit(ctx, FileList); err != nil {
-			return nil, err
+		if !d.APIRateLimit(FileList) {
+			time.Sleep(time.Millisecond * 200)
+			continue
 		}
 		var resp Files
 		query := map[string]string{
