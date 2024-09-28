@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/google/uuid"
 	"hash/crc32"
 	"math"
 	"math/rand"
@@ -23,11 +24,34 @@ const (
 	Api          = "https://www.123pan.com/api"
 	AApi         = "https://www.123pan.com/a/api"
 	BApi         = "https://www.123pan.com/b/api"
-	MainApi      = BApi
+	MainApi      = Api
 	FileList     = MainApi + "/share/get"
 	DownloadInfo = MainApi + "/share/download/info"
 	//AuthKeySalt      = "8-8D$sL8gPjom7bk#cY"
 )
+
+const (
+	AndroidUserAgentPrefix = "123pan/v2.4.7" // 123pan/v2.4.7(Android_14;XiaoMi)
+	AndroidPlatformParam   = "android"
+	AndroidAppVer          = "69"
+	AndroidXAppVer         = "2.4.7"
+	AndroidXChannel        = "1002"
+	TVUserAgentPrefix      = "123pan_android_tv/1.0.0" // 123pan_android_tv/1.0.0(14;samsung SM-X800)
+	TVPlatformParam        = "android_tv"
+	TVAndroidAppVer        = "100"
+)
+
+type Params struct {
+	UserAgent   string
+	Platform    string
+	AppVersion  string
+	OsVersion   string
+	LoginUuid   string
+	DeviceType  string
+	DeviceName  string
+	XChannel    string
+	XAppVersion string
+}
 
 func signPath(path string, os string, version string) (k string, v string) {
 	table := []byte{'a', 'd', 'e', 'f', 'g', 'h', 'l', 'm', 'y', 'i', 'j', 'n', 'o', 'p', 'k', 'q', 'r', 's', 't', 'u', 'b', 'c', 'v', 'w', 's', 'z'}
@@ -55,21 +79,35 @@ func GetApi(rawUrl string) string {
 func (d *Pan123Share) request(url string, method string, callback base.ReqCallback, resp interface{}) ([]byte, error) {
 	req := base.RestyClient.R()
 	req.SetHeaders(map[string]string{
-		"origin":        "https://www.123pan.com",
-		"referer":       "https://www.123pan.com/",
+		/*		"origin":        "https://www.123pan.com",
+				"referer":       "https://www.123pan.com/",*/
 		"authorization": "Bearer " + d.AccessToken,
-		"user-agent":    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) alist-client",
-		"platform":      "web",
-		"app-version":   "3",
-		//"user-agent":    base.UserAgent,
+		"user-agent":    d.params.UserAgent,
+		"platform":      d.params.Platform,
+		"app-version":   d.params.AppVersion,
+		"osversion":     d.params.OsVersion,
+		"devicetype":    d.params.DeviceType,
+		"devicename":    d.params.DeviceName,
+		"loginuuid":     d.params.LoginUuid,
 	})
+
+	if d.params.XChannel != "" && d.params.XAppVersion != "" {
+		req.SetHeaders(map[string]string{
+			"x-channel":     d.params.XChannel,
+			"x-app-version": d.params.XAppVersion,
+		})
+	}
+
+	req.SetQueryParam("auth-key", generateAuthKey())
+
 	if callback != nil {
 		callback(req)
 	}
 	if resp != nil {
 		req.SetResult(resp)
 	}
-	res, err := req.Execute(method, GetApi(url))
+	//res, err := req.Execute(method, GetApi(url))
+	res, err := req.Execute(method, url)
 	if err != nil {
 		return nil, err
 	}
@@ -115,3 +153,10 @@ func (d *Pan123Share) getFiles(ctx context.Context, parentId string) ([]File, er
 }
 
 // do others that not defined in Driver interface
+
+func generateAuthKey() string {
+	timestamp := time.Now().Unix()
+	randomInt := rand.Intn(1e9)                                     // 生成9位的随机整数
+	uuidStr := strings.ReplaceAll(uuid.New().String(), "-", "")     // 去掉 UUID 中的所有 -
+	return fmt.Sprintf("%d-%09d-%s", timestamp, randomInt, uuidStr) // 确保随机整数是9位
+}
