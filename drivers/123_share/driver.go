@@ -23,6 +23,7 @@ type Pan123Share struct {
 	model.Storage
 	Addition
 	apiRateLimit sync.Map
+	params       Params
 }
 
 func (d *Pan123Share) Config() driver.Config {
@@ -36,6 +37,25 @@ func (d *Pan123Share) GetAddition() driver.Additional {
 func (d *Pan123Share) Init(ctx context.Context) error {
 	// TODO login / refresh token
 	//op.MustSaveDriverStorage(d)
+	// 拼接UserAgent
+	if d.PlatformType == "android" {
+		d.params.UserAgent = AndroidUserAgentPrefix + "(" + d.OsVersion + ";" + d.DeviceName + " " + d.DeiveType + ")"
+		d.params.Platform = AndroidPlatformParam
+		d.params.AppVersion = AndroidAppVer
+		d.params.XChannel = AndroidXChannel
+		d.params.XAppVersion = AndroidXAppVer
+
+	} else if d.PlatformType == "tv" {
+		d.params.UserAgent = TVUserAgentPrefix + "(" + d.OsVersion + ";" + d.DeviceName + " " + d.DeiveType + ")"
+		d.params.Platform = TVPlatformParam
+		d.params.AppVersion = TVAndroidAppVer
+	}
+
+	d.params.OsVersion = d.OsVersion
+	d.params.LoginUuid = d.LoginUuid
+	d.params.DeviceName = d.DeviceName
+	d.params.DeviceType = d.DeiveType
+
 	return nil
 }
 
@@ -66,11 +86,13 @@ func (d *Pan123Share) Link(ctx context.Context, file model.Obj, args model.LinkA
 			}
 		}
 		data := base.Json{
+			"driveId":   "0",
 			"shareKey":  d.ShareKey,
 			"SharePwd":  d.SharePwd,
 			"etag":      f.Etag,
 			"fileId":    f.FileId,
 			"s3keyFlag": f.S3KeyFlag,
+			"FileName":  f.FileName,
 			"size":      f.Size,
 		}
 		resp, err := d.request(DownloadInfo, http.MethodPost, func(req *resty.Request) {
@@ -152,7 +174,7 @@ func (d *Pan123Share) Put(ctx context.Context, dstDir model.Obj, stream model.Fi
 
 func (d *Pan123Share) APIRateLimit(ctx context.Context, api string) error {
 	value, _ := d.apiRateLimit.LoadOrStore(api,
-		rate.NewLimiter(rate.Every(700*time.Millisecond), 1))
+		rate.NewLimiter(rate.Every(800*time.Millisecond), 1))
 	limiter := value.(*rate.Limiter)
 
 	return limiter.Wait(ctx)

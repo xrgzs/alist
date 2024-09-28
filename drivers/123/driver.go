@@ -30,6 +30,7 @@ type Pan123 struct {
 	model.Storage
 	Addition
 	apiRateLimit sync.Map
+	params       Params
 }
 
 func (d *Pan123) Config() driver.Config {
@@ -41,6 +42,25 @@ func (d *Pan123) GetAddition() driver.Additional {
 }
 
 func (d *Pan123) Init(ctx context.Context) error {
+	// 拼接UserAgent
+	if d.PlatformType == "android" {
+		d.params.UserAgent = AndroidUserAgentPrefix + "(" + d.OsVersion + ";" + d.DeviceName + " " + d.DeiveType + ")"
+		d.params.Platform = AndroidPlatformParam
+		d.params.AppVersion = AndroidAppVer
+		d.params.XChannel = AndroidXChannel
+		d.params.XAppVersion = AndroidXAppVer
+
+	} else if d.PlatformType == "tv" {
+		d.params.UserAgent = TVUserAgentPrefix + "(" + d.OsVersion + ";" + d.DeviceName + " " + d.DeiveType + ")"
+		d.params.Platform = TVPlatformParam
+		d.params.AppVersion = TVAndroidAppVer
+	}
+
+	d.params.OsVersion = d.OsVersion
+	d.params.LoginUuid = d.LoginUuid
+	d.params.DeviceName = d.DeviceName
+	d.params.DeviceType = d.DeiveType
+
 	_, err := d.request(UserInfo, http.MethodGet, nil, nil)
 	return err
 }
