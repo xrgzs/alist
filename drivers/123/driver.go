@@ -277,7 +277,7 @@ func (d *Pan123) Put(ctx context.Context, dstDir model.Obj, stream model.FileStr
 
 func (d *Pan123) APIRateLimit(ctx context.Context, api string) error {
 	value, _ := d.apiRateLimit.LoadOrStore(api,
-		rate.NewLimiter(rate.Every(700*time.Millisecond), 1))
+		rate.NewLimiter(rate.Every(800*time.Millisecond), 1))
 	limiter := value.(*rate.Limiter)
 
 	return limiter.Wait(ctx)
