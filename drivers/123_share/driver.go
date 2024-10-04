@@ -78,13 +78,6 @@ func (d *Pan123Share) Link(ctx context.Context, file model.Obj, args model.LinkA
 	// TODO return link of file, required
 	if f, ok := file.(File); ok {
 		//var resp DownResp
-		var headers map[string]string
-		if !utils.IsLocalIPAddr(args.IP) {
-			headers = map[string]string{
-				//"X-Real-IP":       "1.1.1.1",
-				"X-Forwarded-For": args.IP,
-			}
-		}
 		data := base.Json{
 			"driveId":   "0",
 			"shareKey":  d.ShareKey,
@@ -96,7 +89,7 @@ func (d *Pan123Share) Link(ctx context.Context, file model.Obj, args model.LinkA
 			"size":      f.Size,
 		}
 		resp, err := d.request(DownloadInfo, http.MethodPost, func(req *resty.Request) {
-			req.SetBody(data).SetHeaders(headers)
+			req.SetBody(data)
 		}, nil)
 		if err != nil {
 			return nil, err
