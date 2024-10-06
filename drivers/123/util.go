@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/google/uuid"
 	"hash/crc32"
 	"math"
 	"math/rand"
@@ -26,7 +27,7 @@ const (
 	Api              = "https://www.123pan.com/api"
 	AApi             = "https://www.123pan.com/a/api"
 	BApi             = "https://www.123pan.com/b/api"
-	MainApi          = BApi
+	MainApi          = Api
 	SignIn           = MainApi + "/user/sign_in"
 	Logout           = MainApi + "/user/logout"
 	UserInfo         = MainApi + "/user/info"
@@ -44,6 +45,29 @@ const (
 	S3Complete       = MainApi + "/file/s3_complete_multipart_upload"
 	//AuthKeySalt      = "8-8D$sL8gPjom7bk#cY"
 )
+
+const (
+	AndroidUserAgentPrefix = "123pan/v2.4.7" // 123pan/v2.4.7(Android_14;XiaoMi)
+	AndroidPlatformParam   = "android"
+	AndroidAppVer          = "69"
+	AndroidXAppVer         = "2.4.7"
+	AndroidXChannel        = "1002"
+	TVUserAgentPrefix      = "123pan_android_tv/1.0.0" // 123pan_android_tv/1.0.0(14;samsung SM-X800)
+	TVPlatformParam        = "android_tv"
+	TVAndroidAppVer        = "100"
+)
+
+type Params struct {
+	UserAgent   string
+	Platform    string
+	AppVersion  string
+	OsVersion   string
+	LoginUuid   string
+	DeviceType  string
+	DeviceName  string
+	XChannel    string
+	XAppVersion string
+}
 
 func signPath(path string, os string, version string) (k string, v string) {
 	table := []byte{'a', 'd', 'e', 'f', 'g', 'h', 'l', 'm', 'y', 'i', 'j', 'n', 'o', 'p', 'k', 'q', 'r', 's', 't', 'u', 'b', 'c', 'v', 'w', 's', 'z'}
@@ -68,81 +92,6 @@ func GetApi(rawUrl string) string {
 	return u.String()
 }
 
-//func GetApi(url string) string {
-//	vm := js.New()
-//	vm.Set("url", url[22:])
-//	r, err := vm.RunString(`
-//	(function(e){
-//        function A(t, e) {
-//            e = 1 < arguments.length && void 0 !== e ? e : 10;
-//            for (var n = function() {
-//                for (var t = [], e = 0; e < 256; e++) {
-//                    for (var n = e, r = 0; r < 8; r++)
-//                        n = 1 & n ? 3988292384 ^ n >>> 1 : n >>> 1;
-//                    t[e] = n
-//                }
-//                return t
-//            }(), r = function(t) {
-//                t = t.replace(/\\r\\n/g, "\\n");
-//                for (var e = "", n = 0; n < t.length; n++) {
-//                    var r = t.charCodeAt(n);
-//                    r < 128 ? e += String.fromCharCode(r) : e = 127 < r && r < 2048 ? (e += String.fromCharCode(r >> 6 | 192)) + String.fromCharCode(63 & r | 128) : (e = (e += String.fromCharCode(r >> 12 | 224)) + String.fromCharCode(r >> 6 & 63 | 128)) + String.fromCharCode(63 & r | 128)
-//                }
-//                return e
-//            }(t), a = -1, i = 0; i < r.length; i++)
-//                a = a >>> 8 ^ n[255 & (a ^ r.charCodeAt(i))];
-//            return (a = (-1 ^ a) >>> 0).toString(e)
-//        }
-//
-//	   function v(t) {
-//	       return (v = "function" == typeof Symbol && "symbol" == typeof Symbol.iterator ? function(t) {
-//	                   return typeof t
-//	               }
-//	               : function(t) {
-//	                   return t && "function" == typeof Symbol && t.constructor === Symbol && t !== Symbol.prototype ? "symbol" : typeof t
-//	               }
-//	       )(t)
-//	   }
-//
-//		for (p in a = Math.round(1e7 * Math.random()),
-//		o = Math.round(((new Date).getTime() + 60 * (new Date).getTimezoneOffset() * 1e3 + 288e5) / 1e3).toString(),
-//		m = ["a", "d", "e", "f", "g", "h", "l", "m", "y", "i", "j", "n", "o", "p", "k", "q", "r", "s", "t", "u", "b", "c", "v", "w", "s", "z"],
-//		u = function(t, e, n) {
-//			var r;
-//			n = 2 < arguments.length && void 0 !== n ? n : 8;
-//			return 0 === arguments.length ? null : (r = "object" === v(t) ? t : (10 === "".concat(t).length && (t = 1e3 * Number.parseInt(t)),
-//			new Date(t)),
-//			t += 6e4 * new Date(t).getTimezoneOffset(),
-//			{
-//				y: (r = new Date(t + 36e5 * n)).getFullYear(),
-//				m: r.getMonth() + 1 < 10 ? "0".concat(r.getMonth() + 1) : r.getMonth() + 1,
-//				d: r.getDate() < 10 ? "0".concat(r.getDate()) : r.getDate(),
-//				h: r.getHours() < 10 ? "0".concat(r.getHours()) : r.getHours(),
-//				f: r.getMinutes() < 10 ? "0".concat(r.getMinutes()) : r.getMinutes()
-//			})
-//		}(o),
-//		h = u.y,
-//		g = u.m,
-//		l = u.d,
-//		c = u.h,
-//		u = u.f,
-//		d = [h, g, l, c, u].join(""),
-//		f = [],
-//		d)
-//			f.push(m[Number(d[p])]);
-//		return h = A(f.join("")),
-//		g = A("".concat(o, "|").concat(a, "|").concat(e, "|").concat("web", "|").concat("3", "|").concat(h)),
-//		"".concat(h, "=").concat(o, "-").concat(a, "-").concat(g);
-//	})(url)
-//	   `)
-//	if err != nil {
-//		fmt.Println(err)
-//		return url
-//	}
-//	v, _ := r.Export().(string)
-//	return url + "?" + v
-//}
-
 func (d *Pan123) login() error {
 	var body base.Json
 	if utils.IsEmailFormat(d.Username) {
@@ -155,19 +104,47 @@ func (d *Pan123) login() error {
 		body = base.Json{
 			"passport": d.Username,
 			"password": d.Password,
-			"remember": true,
+			"type":     1,
 		}
 	}
-	res, err := base.RestyClient.R().
-		SetHeaders(map[string]string{
-			"origin":      "https://www.123pan.com",
-			"referer":     "https://www.123pan.com/",
-			"user-agent":  "Dart/2.19(dart:io)-alist",
-			"platform":    "web",
-			"app-version": "3",
-			//"user-agent":  base.UserAgent,
-		}).
-		SetBody(body).Post(SignIn)
+
+	req := base.RestyClient.R()
+
+	req.SetHeaders(map[string]string{
+		/*			"origin":      "https://www.123pan.com",
+					"referer":     "https://www.123pan.com/",*/
+		"user-agent":  d.params.UserAgent,
+		"platform":    d.params.Platform,
+		"app-version": d.params.AppVersion,
+		"osversion":   d.params.OsVersion,
+		"devicetype":  d.params.DeviceType,
+		"devicename":  d.params.DeviceName,
+		"loginuuid":   d.params.LoginUuid,
+	})
+
+	if d.params.XChannel != "" && d.params.XAppVersion != "" {
+		req.SetHeaders(map[string]string{
+			"x-channel":     d.params.XChannel,
+			"x-app-version": d.params.XAppVersion,
+		})
+	}
+
+	req.SetQueryParam("auth-key", generateAuthKey())
+
+	res, err := req.SetBody(body).Post(SignIn)
+	//res, err := base.RestyClient.R().
+	//	SetHeaders(map[string]string{
+	//		/*			"origin":      "https://www.123pan.com",
+	//					"referer":     "https://www.123pan.com/",*/
+	//		"user-agent":  d.params.UserAgent,
+	//		"platform":    d.params.Platform,
+	//		"app-version": d.params.AppVersion,
+	//		"osversion":   d.params.OsVersion,
+	//		"devicetype":  d.params.DeviceType,
+	//		"devicename":  d.params.DeviceName,
+	//		//"user-agent":  base.UserAgent,
+	//	}).
+	//	SetBody(body).Post(SignIn)
 	if err != nil {
 		return err
 	}
@@ -196,14 +173,27 @@ func (d *Pan123) login() error {
 func (d *Pan123) request(url string, method string, callback base.ReqCallback, resp interface{}) ([]byte, error) {
 	req := base.RestyClient.R()
 	req.SetHeaders(map[string]string{
-		"origin":        "https://www.123pan.com",
-		"referer":       "https://www.123pan.com/",
+		/*		"origin":        "https://www.123pan.com",
+				"referer":       "https://www.123pan.com/",*/
 		"authorization": "Bearer " + d.AccessToken,
-		"user-agent":    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) alist-client",
-		"platform":      "web",
-		"app-version":   "3",
-		//"user-agent":    base.UserAgent,
+		"user-agent":    d.params.UserAgent,
+		"platform":      d.params.Platform,
+		"app-version":   d.params.AppVersion,
+		"osversion":     d.params.OsVersion,
+		"devicetype":    d.params.DeviceType,
+		"devicename":    d.params.DeviceName,
+		"loginuuid":     d.params.LoginUuid,
 	})
+
+	if d.params.XChannel != "" && d.params.XAppVersion != "" {
+		req.SetHeaders(map[string]string{
+			"x-channel":     d.params.XChannel,
+			"x-app-version": d.params.XAppVersion,
+		})
+	}
+
+	req.SetQueryParam("auth-key", generateAuthKey())
+
 	if callback != nil {
 		callback(req)
 	}
@@ -215,7 +205,8 @@ func (d *Pan123) request(url string, method string, callback base.ReqCallback, r
 	//	return nil, err
 	//}
 	//req.SetQueryParam("auth-key", *authKey)
-	res, err := req.Execute(method, GetApi(url))
+	//res, err := req.Execute(method, GetApi(url))
+	res, err := req.Execute(method, url)
 	if err != nil {
 		return nil, err
 	}
@@ -277,4 +268,11 @@ func (d *Pan123) getFiles(ctx context.Context, parentId string, name string) ([]
 		log.Warnf("incorrect file count from remote at %s: expected %d, got %d", name, total, len(res))
 	}
 	return res, nil
+}
+
+func generateAuthKey() string {
+	timestamp := time.Now().Unix()
+	randomInt := rand.Intn(1e9)                                     // 生成9位的随机整数
+	uuidStr := strings.ReplaceAll(uuid.New().String(), "-", "")     // 去掉 UUID 中的所有 -
+	return fmt.Sprintf("%d-%09d-%s", timestamp, randomInt, uuidStr) // 确保随机整数是9位
 }
