@@ -2,9 +2,12 @@ package _123Share
 
 import (
 	"context"
+	"encoding/base64"
 	"errors"
 	"fmt"
+	"github.com/alist-org/alist/v3/internal/op"
 	"github.com/google/uuid"
+	"github.com/skip2/go-qrcode"
 	"hash/crc32"
 	"math"
 	"math/rand"
@@ -21,12 +24,17 @@ import (
 )
 
 const (
-	Api          = "https://www.123pan.com/api"
-	AApi         = "https://www.123pan.com/a/api"
-	BApi         = "https://www.123pan.com/b/api"
-	MainApi      = Api
-	FileList     = MainApi + "/share/get"
-	DownloadInfo = MainApi + "/share/download/info"
+	Api            = "https://www.123pan.com/api"
+	AApi           = "https://www.123pan.com/a/api"
+	BApi           = "https://www.123pan.com/b/api"
+	MainApi        = Api
+	SignIn         = MainApi + "/user/sign_in"
+	Logout         = MainApi + "/user/logout"
+	FileList       = MainApi + "/share/get"
+	DownloadInfo   = MainApi + "/share/download/info"
+	UserInfo       = MainApi + "/user/info"
+	QrcodeGenerate = MainApi + "/user/qr-code/generate"
+	QrcodeResult   = MainApi + "/user/qr-code/result"
 	//AuthKeySalt      = "8-8D$sL8gPjom7bk#cY"
 )
 
@@ -51,6 +59,147 @@ type Params struct {
 	DeviceName  string
 	XChannel    string
 	XAppVersion string
+}
+
+func (d *Pan123Share) login() error {
+	var body base.Json
+	if utils.IsEmailFormat(d.Username) {
+		body = base.Json{
+			"mail":     d.Username,
+			"password": d.Password,
+			"type":     2,
+		}
+	} else {
+		body = base.Json{
+			"passport": d.Username,
+			"password": d.Password,
+			"type":     1,
+		}
+	}
+
+	req := base.RestyClient.R()
+
+	req.SetHeaders(map[string]string{
+		/*			"origin":      "https://www.123pan.com",
+					"referer":     "https://www.123pan.com/",*/
+		"user-agent":  d.params.UserAgent,
+		"platform":    d.params.Platform,
+		"app-version": d.params.AppVersion,
+		"osversion":   d.params.OsVersion,
+		"devicetype":  d.params.DeviceType,
+		"devicename":  d.params.DeviceName,
+		"loginuuid":   d.params.LoginUuid,
+	})
+
+	if d.params.XChannel != "" && d.params.XAppVersion != "" {
+		req.SetHeaders(map[string]string{
+			"x-channel":     d.params.XChannel,
+			"x-app-version": d.params.XAppVersion,
+		})
+	}
+
+	req.SetQueryParam("auth-key", generateAuthKey())
+
+	res, err := req.SetBody(body).Post(SignIn)
+	//res, err := base.RestyClient.R().
+	//	SetHeaders(map[string]string{
+	//		/*			"origin":      "https://www.123pan.com",
+	//					"referer":     "https://www.123pan.com/",*/
+	//		"user-agent":  d.params.UserAgent,
+	//		"platform":    d.params.Platform,
+	//		"app-version": d.params.AppVersion,
+	//		"osversion":   d.params.OsVersion,
+	//		"devicetype":  d.params.DeviceType,
+	//		"devicename":  d.params.DeviceName,
+	//		//"user-agent":  base.UserAgent,
+	//	}).
+	//	SetBody(body).Post(SignIn)
+	if err != nil {
+		return err
+	}
+	if utils.Json.Get(res.Body(), "code").ToInt() != 200 {
+		err = fmt.Errorf(utils.Json.Get(res.Body(), "message").ToString())
+	} else {
+		d.AccessToken = utils.Json.Get(res.Body(), "data", "token").ToString()
+	}
+	return err
+}
+
+//func authKey(reqUrl string) (*string, error) {
+//	reqURL, err := url.Parse(reqUrl)
+//	if err != nil {
+//		return nil, err
+//	}
+//
+//	nowUnix := time.Now().Unix()
+//	random := rand.Intn(0x989680)
+//
+//	p4 := fmt.Sprintf("%d|%d|%s|%s|%s|%s", nowUnix, random, reqURL.Path, "web", "3", AuthKeySalt)
+//	authKey := fmt.Sprintf("%d-%d-%x", nowUnix, random, md5.Sum([]byte(p4)))
+//	return &authKey, nil
+//}
+
+func (d *Pan123Share) loginByQrCode() error {
+	if d.Addition.UniID == "" {
+		uniID, err := d.generateQrCode()
+		if uniID == "" && err != nil {
+			return err
+		} else {
+			// 保存 uniID 用于 二维码登录
+			d.Addition.UniID = uniID
+			op.MustSaveDriverStorage(d)
+			return err
+		}
+	} else {
+		token, err := d.getTokenByUniID()
+		if token == "" && err != nil {
+			return err
+		} else {
+			d.Addition.AccessToken = token
+			op.MustSaveDriverStorage(d)
+			return err
+		}
+	}
+}
+
+func (d *Pan123Share) generateQrCode() (string, error) {
+	var resp QrCodeGenerateResp
+	_, err := d.request(QrcodeGenerate, http.MethodGet, nil, &resp)
+	if err != nil {
+		return "", err
+	}
+	// 拼接二维码链接
+	qrUrl := fmt.Sprintf(resp.Data.Url+"?uniID=%s", resp.Data.UniID+"&source=123pan&type=login")
+	// 生成二维码
+	qrBytes, _ := qrcode.Encode(qrUrl, qrcode.Medium, 256)
+	base64Bytes := base64.StdEncoding.EncodeToString(qrBytes)
+	// 展示二维码
+	qrTemplate := `
+	<body>
+        <img src="data:image/jpeg;base64,%s"/>
+		<a target="_blank" href="%s">Or Click Here</a>
+    </body>`
+	qrPage := fmt.Sprintf(qrTemplate, base64Bytes, qrUrl)
+	return resp.Data.UniID, fmt.Errorf("need verify: \n%s", qrPage)
+}
+
+func (d *Pan123Share) getTokenByUniID() (string, error) {
+	var resp QrCodeResultResp
+	_, err := d.request(QrcodeResult, http.MethodGet, func(req *resty.Request) {
+		req.SetQueryParam("uniID", d.Addition.UniID)
+	}, &resp)
+	if err != nil {
+		return "", err
+	}
+
+	if resp.Data.LoginStatus == 4 {
+		return "", errors.New("uniID expired")
+	} else if resp.Data.Token == "" && resp.Data.LoginStatus == 0 {
+		return "", errors.New("wait for scan qrcode")
+	}
+
+	return resp.Data.Token, nil
+
 }
 
 func signPath(path string, os string, version string) (k string, v string) {
@@ -113,7 +262,20 @@ func (d *Pan123Share) request(url string, method string, callback base.ReqCallba
 	}
 	body := res.Body()
 	code := utils.Json.Get(body, "code").ToInt()
-	if code != 0 {
+	if code != 0 && code != 200 {
+		if code == 401 && d.Addition.UseQrCodeLogin == false {
+			err := d.login()
+			if err != nil {
+				return nil, err
+			}
+			return d.request(url, method, callback, resp)
+		} else if code == 401 && d.Addition.UseQrCodeLogin == true {
+			err := d.loginByQrCode()
+			if err != nil {
+				return nil, err
+			}
+			return d.request(url, method, callback, resp)
+		}
 		return nil, errors.New(jsoniter.Get(body, "message").ToString())
 	}
 	return body, nil
