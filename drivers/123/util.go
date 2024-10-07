@@ -2,9 +2,12 @@ package _123
 
 import (
 	"context"
+	"encoding/base64"
 	"errors"
 	"fmt"
+	"github.com/alist-org/alist/v3/internal/op"
 	"github.com/google/uuid"
+	"github.com/skip2/go-qrcode"
 	"hash/crc32"
 	"math"
 	"math/rand"
@@ -44,6 +47,8 @@ const (
 	UploadCompleteV2 = MainApi + "/file/upload_complete/v2"
 	S3Complete       = MainApi + "/file/s3_complete_multipart_upload"
 	//AuthKeySalt      = "8-8D$sL8gPjom7bk#cY"
+	QrcodeGenerate = MainApi + "/user/qr-code/generate"
+	QrcodeResult   = MainApi + "/user/qr-code/result"
 )
 
 const (
@@ -170,6 +175,69 @@ func (d *Pan123) login() error {
 //	return &authKey, nil
 //}
 
+func (d *Pan123) loginByQrCode() error {
+	if d.Addition.UniID == "" {
+		uniID, err := d.generateQrCode()
+		if uniID == "" && err != nil {
+			return err
+		} else {
+			// 保存 uniID 用于 二维码登录
+			d.Addition.UniID = uniID
+			op.MustSaveDriverStorage(d)
+			return err
+		}
+	} else {
+		token, err := d.getTokenByUniID()
+		if token == "" && err != nil {
+			return err
+		} else {
+			d.Addition.AccessToken = token
+			op.MustSaveDriverStorage(d)
+			return err
+		}
+	}
+}
+
+func (d *Pan123) generateQrCode() (string, error) {
+	var resp QrCodeGenerateResp
+	_, err := d.request(QrcodeGenerate, http.MethodGet, nil, &resp)
+	if err != nil {
+		return "", err
+	}
+	// 拼接二维码链接
+	qrUrl := fmt.Sprintf(resp.Data.Url+"?uniID=%s", resp.Data.UniID+"&source=123pan&type=login")
+	// 生成二维码
+	qrBytes, _ := qrcode.Encode(qrUrl, qrcode.Medium, 256)
+	base64Bytes := base64.StdEncoding.EncodeToString(qrBytes)
+	// 展示二维码
+	qrTemplate := `
+	<body>
+        <img src="data:image/jpeg;base64,%s"/>
+		<a target="_blank" href="%s">Or Click Here</a>
+    </body>`
+	qrPage := fmt.Sprintf(qrTemplate, base64Bytes, qrUrl)
+	return resp.Data.UniID, fmt.Errorf("need verify: \n%s", qrPage)
+}
+
+func (d *Pan123) getTokenByUniID() (string, error) {
+	var resp QrCodeResultResp
+	_, err := d.request(QrcodeResult, http.MethodGet, func(req *resty.Request) {
+		req.SetQueryParam("uniID", d.Addition.UniID)
+	}, &resp)
+	if err != nil {
+		return "", err
+	}
+
+	if resp.Data.LoginStatus == 4 {
+		return "", errors.New("uniID expired")
+	} else if resp.Data.Token == "" && resp.Data.LoginStatus == 0 {
+		return "", errors.New("wait for scan qrcode")
+	}
+
+	return resp.Data.Token, nil
+
+}
+
 func (d *Pan123) request(url string, method string, callback base.ReqCallback, resp interface{}) ([]byte, error) {
 	req := base.RestyClient.R()
 	req.SetHeaders(map[string]string{
@@ -212,9 +280,15 @@ func (d *Pan123) request(url string, method string, callback base.ReqCallback, r
 	}
 	body := res.Body()
 	code := utils.Json.Get(body, "code").ToInt()
-	if code != 0 {
-		if code == 401 {
+	if code != 0 && code != 200 {
+		if code == 401 && d.Addition.UseQrCodeLogin == false {
 			err := d.login()
+			if err != nil {
+				return nil, err
+			}
+			return d.request(url, method, callback, resp)
+		} else if code == 401 && d.Addition.UseQrCodeLogin == true {
+			err := d.loginByQrCode()
 			if err != nil {
 				return nil, err
 			}

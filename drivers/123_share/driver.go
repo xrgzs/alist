@@ -35,8 +35,7 @@ func (d *Pan123Share) GetAddition() driver.Additional {
 }
 
 func (d *Pan123Share) Init(ctx context.Context) error {
-	// TODO login / refresh token
-	//op.MustSaveDriverStorage(d)
+	// TODO  refresh token
 	// 拼接UserAgent
 	if d.PlatformType == "android" {
 		d.params.UserAgent = AndroidUserAgentPrefix + "(" + d.OsVersion + ";" + d.DeviceName + " " + d.DeiveType + ")"
@@ -56,10 +55,14 @@ func (d *Pan123Share) Init(ctx context.Context) error {
 	d.params.DeviceName = d.DeviceName
 	d.params.DeviceType = d.DeiveType
 
-	return nil
+	_, err := d.request(UserInfo, http.MethodGet, nil, nil)
+	return err
 }
 
 func (d *Pan123Share) Drop(ctx context.Context) error {
+	_, _ = d.request(Logout, http.MethodPost, func(req *resty.Request) {
+		req.SetBody(base.Json{})
+	}, nil)
 	return nil
 }
 
