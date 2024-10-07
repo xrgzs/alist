@@ -97,3 +97,21 @@ type Files struct {
 //		DownloadUrl string `json:"DownloadUrl"`
 //	} `json:"data"`
 //}
+
+type QrCodeGenerateResp struct {
+	Data struct {
+		UniID string `json:"uniID"`
+		Url   string `json:"url"`
+	} `json:"data"`
+}
+
+type QrCodeResultResp struct {
+	Data struct {
+		Expire                 time.Time `json:"expire"`
+		LoginType              int       `json:"login_type"`
+		RefreshTokenExpireTime int       `json:"refresh_token_expire_time"`
+		Token                  string    `json:"token"`
+		LoginStatus            int       `json:"loginStatus"`
+		ScanPlatform           int       `json:"scanPlatform"`
+	} `json:"data"`
+}
