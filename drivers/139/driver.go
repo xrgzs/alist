@@ -108,9 +108,9 @@ func (d *Yun139) Link(ctx context.Context, file model.Obj, args model.LinkArgs) 
 	case MetaPersonalNew:
 		url, err = d.personalGetLink(file.GetID())
 	case MetaPersonal:
-		fallthrough
-	case MetaFamily:
 		url, err = d.getLink(file.GetID())
+	case MetaFamily:
+		url, err = d.familyGetLink(file.GetID(), file.GetPath())
 	default:
 		return nil, errs.NotImplement
 	}
