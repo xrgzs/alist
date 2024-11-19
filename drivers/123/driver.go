@@ -30,6 +30,7 @@ type Pan123 struct {
 	model.Storage
 	Addition
 	apiRateLimit sync.Map
+	params       Params
 }
 
 func (d *Pan123) Config() driver.Config {
@@ -41,6 +42,25 @@ func (d *Pan123) GetAddition() driver.Additional {
 }
 
 func (d *Pan123) Init(ctx context.Context) error {
+	// 拼接UserAgent
+	if d.PlatformType == "android" {
+		d.params.UserAgent = AndroidUserAgentPrefix + "(" + d.OsVersion + ";" + d.DeviceName + " " + d.DeiveType + ")"
+		d.params.Platform = AndroidPlatformParam
+		d.params.AppVersion = AndroidAppVer
+		d.params.XChannel = AndroidXChannel
+		d.params.XAppVersion = AndroidXAppVer
+
+	} else if d.PlatformType == "tv" {
+		d.params.UserAgent = TVUserAgentPrefix + "(" + d.OsVersion + ";" + d.DeviceName + " " + d.DeiveType + ")"
+		d.params.Platform = TVPlatformParam
+		d.params.AppVersion = TVAndroidAppVer
+	}
+
+	d.params.OsVersion = d.OsVersion
+	d.params.LoginUuid = d.LoginUuid
+	d.params.DeviceName = d.DeviceName
+	d.params.DeviceType = d.DeiveType
+
 	_, err := d.request(UserInfo, http.MethodGet, nil, nil)
 	return err
 }
@@ -65,13 +85,6 @@ func (d *Pan123) List(ctx context.Context, dir model.Obj, args model.ListArgs) (
 func (d *Pan123) Link(ctx context.Context, file model.Obj, args model.LinkArgs) (*model.Link, error) {
 	if f, ok := file.(File); ok {
 		//var resp DownResp
-		var headers map[string]string
-		if !utils.IsLocalIPAddr(args.IP) {
-			headers = map[string]string{
-				//"X-Real-IP":       "1.1.1.1",
-				"X-Forwarded-For": args.IP,
-			}
-		}
 		data := base.Json{
 			"driveId":   0,
 			"etag":      f.Etag,
@@ -82,8 +95,7 @@ func (d *Pan123) Link(ctx context.Context, file model.Obj, args model.LinkArgs) 
 			"type":      f.Type,
 		}
 		resp, err := d.request(DownloadInfo, http.MethodPost, func(req *resty.Request) {
-			
-			req.SetBody(data).SetHeaders(headers)
+			req.SetBody(data)
 		}, nil)
 		if err != nil {
 			return nil, err
@@ -258,7 +270,7 @@ func (d *Pan123) Put(ctx context.Context, dstDir model.Obj, stream model.FileStr
 
 func (d *Pan123) APIRateLimit(ctx context.Context, api string) error {
 	value, _ := d.apiRateLimit.LoadOrStore(api,
-		rate.NewLimiter(rate.Every(700*time.Millisecond), 1))
+		rate.NewLimiter(rate.Every(800*time.Millisecond), 1))
 	limiter := value.(*rate.Limiter)
 
 	return limiter.Wait(ctx)
