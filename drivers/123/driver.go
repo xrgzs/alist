@@ -6,10 +6,12 @@ import (
 	"encoding/base64"
 	"encoding/hex"
 	"fmt"
+	"github.com/google/uuid"
 	"golang.org/x/time/rate"
 	"io"
 	"net/http"
 	"net/url"
+	"strings"
 	"sync"
 	"time"
 
@@ -56,10 +58,14 @@ func (d *Pan123) Init(ctx context.Context) error {
 		d.params.AppVersion = TVAndroidAppVer
 	}
 
+	if d.Addition.LoginUuid == "" {
+		d.Addition.LoginUuid = strings.ReplaceAll(uuid.New().String(), "-", "")
+	}
+
 	d.params.OsVersion = d.OsVersion
-	d.params.LoginUuid = d.LoginUuid
 	d.params.DeviceName = d.DeviceName
 	d.params.DeviceType = d.DeiveType
+	d.params.LoginUuid = d.Addition.LoginUuid
 
 	_, err := d.request(UserInfo, http.MethodGet, nil, nil)
 	return err

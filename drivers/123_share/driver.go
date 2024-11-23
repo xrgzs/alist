@@ -4,9 +4,11 @@ import (
 	"context"
 	"encoding/base64"
 	"fmt"
+	"github.com/google/uuid"
 	"golang.org/x/time/rate"
 	"net/http"
 	"net/url"
+	"strings"
 	"sync"
 	"time"
 
@@ -50,10 +52,14 @@ func (d *Pan123Share) Init(ctx context.Context) error {
 		d.params.AppVersion = TVAndroidAppVer
 	}
 
+	if d.Addition.LoginUuid == "" {
+		d.Addition.LoginUuid = strings.ReplaceAll(uuid.New().String(), "-", "")
+	}
+
 	d.params.OsVersion = d.OsVersion
-	d.params.LoginUuid = d.LoginUuid
 	d.params.DeviceName = d.DeviceName
 	d.params.DeviceType = d.DeiveType
+	d.params.LoginUuid = d.LoginUuid
 
 	_, err := d.request(UserInfo, http.MethodGet, nil, nil)
 	return err

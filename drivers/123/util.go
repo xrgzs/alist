@@ -53,11 +53,11 @@ const (
 )
 
 const (
-	AndroidUserAgentPrefix = "123pan/v2.4.7" // 123pan/v2.4.7(Android_14;XiaoMi)
+	AndroidUserAgentPrefix = "123pan/v2.4.8" // 123pan/v2.4.8(Android_14;XiaoMi)
 	AndroidPlatformParam   = "android"
-	AndroidAppVer          = "69"
-	AndroidXAppVer         = "2.4.7"
-	AndroidXChannel        = "1002"
+	AndroidAppVer          = "70"
+	AndroidXAppVer         = "2.4.8"
+	AndroidXChannel        = "1001"
 	TVUserAgentPrefix      = "123pan_android_tv/1.0.0" // 123pan_android_tv/1.0.0(14;samsung SM-X800)
 	TVPlatformParam        = "android_tv"
 	TVAndroidAppVer        = "100"
