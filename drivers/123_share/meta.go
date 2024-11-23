@@ -20,7 +20,7 @@ type Addition struct {
 	DeviceName   string `json:"devicename" default:"Xiaomi"`
 	DeiveType    string `json:"devicetype" default:"M1810E5A"`
 	OsVersion    string `json:"osversion" default:"Android_8.1.0"`
-	LoginUuid    string `json:"loginuuid" default:"66a4c82756134af2a57d323fd7a5e58c"`
+	LoginUuid    string `json:"loginuuid" default:""`
 }
 
 var config = driver.Config{
