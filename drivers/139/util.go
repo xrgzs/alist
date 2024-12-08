@@ -281,7 +281,7 @@ func (d *Yun139) familyGetLink(contentId string, path string) (string, error) {
 		"contentID": contentId,
 		"path":      path,
 	})
-	res, err := d.post("/orchestration/personalCloud/uploadAndDownload/v1.0/downloadRequest",
+	res, err := d.post("/orchestration/familyCloud-rebuild/content/v1.0/getFileDownLoadURL",
 		data, nil)
 	if err != nil {
 		return "", err
