@@ -357,7 +357,10 @@ const (
 	TB
 )
 
-func getPartSize(size int64) int64 {
+func (d *Yun139) getPartSize(size int64) int64 {
+	if d.CustomUploadPartSize != 0 {
+		return d.CustomUploadPartSize
+	}
 	// 网盘对于分片数量存在上限
 	if size/GB > 30 {
 		return 512 * MB
@@ -382,7 +385,7 @@ func (d *Yun139) Put(ctx context.Context, dstDir model.Obj, stream model.FileStr
 		}
 
 		partInfos := []PartInfo{}
-		var partSize = getPartSize(stream.GetSize())
+		var partSize = d.getPartSize(stream.GetSize())
 		part := (stream.GetSize() + partSize - 1) / partSize
 		if part == 0 {
 			part = 1
@@ -558,7 +561,7 @@ func (d *Yun139) Put(ctx context.Context, dstDir model.Obj, stream model.FileStr
 		// Progress
 		p := driver.NewProgress(stream.GetSize(), up)
 
-		var partSize = getPartSize(stream.GetSize())
+		var partSize = d.getPartSize(stream.GetSize())
 		part := (stream.GetSize() + partSize - 1) / partSize
 		if part == 0 {
 			part = 1
