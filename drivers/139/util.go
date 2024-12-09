@@ -260,6 +260,61 @@ func (d *Yun139) familyGetFiles(catalogID string) ([]model.Obj, error) {
 	return files, nil
 }
 
+func (d *Yun139) groupGetFiles(catalogID string) ([]model.Obj, error) {
+	pageNum := 1
+	files := make([]model.Obj, 0)
+	for {
+		data := d.newJson(base.Json{
+			"groupID":         d.CloudID,
+			"catalogID":       catalogID,
+			"contentSortType": 0,
+			"sortDirection":   1,
+			"startNumber":     pageNum,
+			"endNumber":       pageNum + 99,
+			"path":            catalogID,
+		})
+
+		var resp QueryGroupContentListResp
+		_, err := d.post("/orchestration/group-rebuild/content/v1.0/queryGroupContentList", data, &resp)
+		if err != nil {
+			return nil, err
+		}
+		path := resp.Data.GetGroupContentResult.ParentCatalogID
+		for _, catalog := range resp.Data.GetGroupContentResult.CatalogList {
+			f := model.Object{
+				ID:       catalog.CatalogID,
+				Name:     catalog.CatalogName,
+				Size:     0,
+				IsFolder: true,
+				Modified: getTime(catalog.UpdateTime),
+				Ctime:    getTime(catalog.CreateTime),
+				Path:     catalog.Path, // 文件夹的真实Path， root:/开头
+			}
+			files = append(files, &f)
+		}
+		for _, content := range resp.Data.GetGroupContentResult.ContentList {
+			f := model.ObjThumb{
+				Object: model.Object{
+					ID:       content.ContentID,
+					Name:     content.ContentName,
+					Size:     content.ContentSize,
+					Modified: getTime(content.UpdateTime),
+					Ctime:    getTime(content.CreateTime),
+					Path:     path, // 文件所在目录的Path
+				},
+				Thumbnail: model.Thumbnail{Thumbnail: content.ThumbnailURL},
+				//Thumbnail: content.BigthumbnailURL,
+			}
+			files = append(files, &f)
+		}
+		if pageNum > resp.Data.GetGroupContentResult.NodeCount {
+			break
+		}
+		pageNum = pageNum + 100
+	}
+	return files, nil
+}
+
 func (d *Yun139) getLink(contentId string) (string, error) {
 	data := base.Json{
 		"appName":   "",
@@ -282,6 +337,20 @@ func (d *Yun139) familyGetLink(contentId string, path string) (string, error) {
 		"path":      path,
 	})
 	res, err := d.post("/orchestration/familyCloud-rebuild/content/v1.0/getFileDownLoadURL",
+		data, nil)
+	if err != nil {
+		return "", err
+	}
+	return jsoniter.Get(res, "data", "downloadURL").ToString(), nil
+}
+
+func (d *Yun139) groupGetLink(contentId string, path string) (string, error) {
+	data := d.newJson(base.Json{
+		"contentID": contentId,
+		"groupID":   d.CloudID,
+		"path":      path,
+	})
+	res, err := d.post("/orchestration/group-rebuild/groupManage/v1.0/getGroupFileDownLoadURL",
 		data, nil)
 	if err != nil {
 		return "", err

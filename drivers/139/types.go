@@ -7,6 +7,7 @@ import (
 const (
 	MetaPersonal    string = "personal"
 	MetaFamily      string = "family"
+	MetaGroup       string = "group"
 	MetaPersonalNew string = "personal_new"
 )
 
@@ -54,6 +55,7 @@ type Content struct {
 	//ContentDesc     string      `json:"contentDesc"`
 	//ContentType     int         `json:"contentType"`
 	//ContentOrigin   int         `json:"contentOrigin"`
+	CreateTime string `json:"createTime"`
 	UpdateTime string `json:"updateTime"`
 	//CommentCount    int         `json:"commentCount"`
 	ThumbnailURL string `json:"thumbnailURL"`
@@ -193,6 +195,27 @@ type QueryContentListResp struct {
 		CloudCatalogList []CloudCatalog `json:"cloudCatalogList"`
 		TotalCount       int            `json:"totalCount"`
 		RecallContent    interface{}    `json:"recallContent"`
+	} `json:"data"`
+}
+
+type QueryGroupContentListResp struct {
+	BaseResp
+	Data struct {
+		Result struct {
+			ResultCode string `json:"resultCode"`
+			ResultDesc string `json:"resultDesc"`
+		} `json:"result"`
+		GetGroupContentResult struct {
+			ParentCatalogID string `json:"parentCatalogID"` // 根目录是"0"
+			CatalogList     []struct {
+				Catalog
+				Path string `json:"path"`
+			} `json:"catalogList"`
+			ContentList []Content `json:"contentList"`
+			NodeCount   int       `json:"nodeCount"` // 文件+文件夹数量
+			CtlgCnt     int       `json:"ctlgCnt"`   // 文件夹数量
+			ContCnt     int       `json:"contCnt"`   // 文件数量
+		} `json:"getGroupContentResult"`
 	} `json:"data"`
 }
 

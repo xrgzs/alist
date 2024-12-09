@@ -58,6 +58,11 @@ func (d *Yun139) Init(ctx context.Context) error {
 			d.RootFolderID = "root"
 		}
 		fallthrough
+	case MetaGroup:
+		if len(d.Addition.RootFolderID) == 0 {
+			d.RootFolderID = d.CloudID
+		}
+		fallthrough
 	case MetaFamily:
 		decode, err := base64.StdEncoding.DecodeString(d.Authorization)
 		if err != nil {
@@ -98,6 +103,8 @@ func (d *Yun139) List(ctx context.Context, dir model.Obj, args model.ListArgs) (
 		return d.getFiles(dir.GetID())
 	case MetaFamily:
 		return d.familyGetFiles(dir.GetID())
+	case MetaGroup:
+		return d.groupGetFiles(dir.GetID())
 	default:
 		return nil, errs.NotImplement
 	}
@@ -113,6 +120,8 @@ func (d *Yun139) Link(ctx context.Context, file model.Obj, args model.LinkArgs) 
 		url, err = d.getLink(file.GetID())
 	case MetaFamily:
 		url, err = d.familyGetLink(file.GetID(), file.GetPath())
+	case MetaGroup:
+		url, err = d.groupGetLink(file.GetID(), file.GetPath())
 	default:
 		return nil, errs.NotImplement
 	}
@@ -160,6 +169,19 @@ func (d *Yun139) MakeDir(ctx context.Context, parentDir model.Obj, dirName strin
 		}
 		pathname := "/orchestration/familyCloud-rebuild/cloudCatalog/v1.0/createCloudDoc"
 		_, err = d.post(pathname, data, nil)
+	case MetaGroup:
+		data := base.Json{
+			"catalogName": dirName,
+			"commonAccountInfo": base.Json{
+				"account":     d.Account,
+				"accountType": 1,
+			},
+			"groupID":      d.CloudID,
+			"parentFileId": parentDir.GetID(),
+			"path":         path.Join(parentDir.GetPath(), parentDir.GetID()),
+		}
+		pathname := "/orchestration/group-rebuild/catalog/v1.0/createGroupCatalog"
+		_, err = d.post(pathname, data, nil)
 	default:
 		err = errs.NotImplement
 	}
@@ -175,6 +197,34 @@ func (d *Yun139) Move(ctx context.Context, srcObj, dstDir model.Obj) (model.Obj,
 		}
 		pathname := "/hcy/file/batchMove"
 		_, err := d.personalPost(pathname, data, nil)
+		if err != nil {
+			return nil, err
+		}
+		return srcObj, nil
+	case MetaGroup:
+		var contentList []string
+		var catalogList []string
+		if srcObj.IsDir() {
+			catalogList = append(catalogList, srcObj.GetID())
+		} else {
+			contentList = append(contentList, srcObj.GetID())
+		}
+		data := base.Json{
+			"taskType":    3,
+			"srcType":     2,
+			"srcGroupID":  d.CloudID,
+			"destType":    2,
+			"destGroupID": d.CloudID,
+			"destPath":    dstDir.GetPath(),
+			"contentList": contentList,
+			"catalogList": catalogList,
+			"commonAccountInfo": base.Json{
+				"account":     d.Account,
+				"accountType": 1,
+			},
+		}
+		pathname := "/orchestration/group-rebuild/task/v1.0/createBatchOprTask"
+		_, err := d.post(pathname, data, nil)
 		if err != nil {
 			return nil, err
 		}
@@ -247,6 +297,35 @@ func (d *Yun139) Rename(ctx context.Context, srcObj model.Obj, newName string) e
 				},
 			}
 			pathname = "/orchestration/personalCloud/content/v1.0/updateContentInfo"
+		}
+		_, err = d.post(pathname, data, nil)
+	case MetaGroup:
+		var data base.Json
+		var pathname string
+		if srcObj.IsDir() {
+			data = base.Json{
+				"groupID":           d.CloudID,
+				"modifyCatalogID":   srcObj.GetID(),
+				"modifyCatalogName": newName,
+				"path":              srcObj.GetPath(),
+				"commonAccountInfo": base.Json{
+					"account":     d.Account,
+					"accountType": 1,
+				},
+			}
+			pathname = "/orchestration/group-rebuild/catalog/v1.0/modifyGroupCatalog"
+		} else {
+			data = base.Json{
+				"groupID":     d.CloudID,
+				"contentID":   srcObj.GetID(),
+				"contentName": newName,
+				"path":        srcObj.GetPath(),
+				"commonAccountInfo": base.Json{
+					"account":     d.Account,
+					"accountType": 1,
+				},
+			}
+			pathname = "/orchestration/group-rebuild/content/v1.0/modifyGroupContent"
 		}
 		_, err = d.post(pathname, data, nil)
 	case MetaFamily:
@@ -335,6 +414,28 @@ func (d *Yun139) Remove(ctx context.Context, obj model.Obj) error {
 		}
 		pathname := "/hcy/recyclebin/batchTrash"
 		_, err := d.personalPost(pathname, data, nil)
+		return err
+	case MetaGroup:
+		var contentList []string
+		var catalogList []string
+		// 必须使用完整路径删除
+		if obj.IsDir() {
+			catalogList = append(catalogList, obj.GetPath())
+		} else {
+			contentList = append(contentList, path.Join(obj.GetPath(), obj.GetID()))
+		}
+		data := base.Json{
+			"taskType":    2,
+			"srcGroupID":  d.CloudID,
+			"contentList": contentList,
+			"catalogList": catalogList,
+			"commonAccountInfo": base.Json{
+				"account":     d.Account,
+				"accountType": 1,
+			},
+		}
+		pathname := "/orchestration/group-rebuild/task/v1.0/createBatchOprTask"
+		_, err := d.post(pathname, data, nil)
 		return err
 	case MetaPersonal:
 		fallthrough
