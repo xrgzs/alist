@@ -505,6 +505,21 @@ func (d *Yun139) getPartSize(size int64) int64 {
 }
 
 func (d *Yun139) Put(ctx context.Context, dstDir model.Obj, stream model.FileStreamer, up driver.UpdateProgress) error {
+	// 处理冲突
+	files, err := d.List(ctx, dstDir, model.ListArgs{Refresh: true})
+	if err != nil {
+		return err
+	}
+	for _, file := range files {
+		if file.GetName() == stream.GetName() {
+			err = d.Remove(ctx, file)
+			if err != nil {
+				return err
+			}
+			break
+		}
+	}
+
 	switch d.Addition.Type {
 	case MetaPersonalNew:
 		var err error
