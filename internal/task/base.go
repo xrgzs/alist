@@ -3,24 +3,58 @@ package task
 import (
 	"github.com/alist-org/alist/v3/internal/model"
 	"github.com/xhofe/tache"
+	"time"
 )
 
-type TaskWithCreator struct {
+type TaskExtension struct {
 	tache.Base
-	Creator *model.User
+	Creator    *model.User
+	startTime  *time.Time
+	endTime    *time.Time
+	totalBytes int64
 }
 
-func (t *TaskWithCreator) SetCreator(creator *model.User) {
+func (t *TaskExtension) SetCreator(creator *model.User) {
 	t.Creator = creator
 	t.Persist()
 }
 
-func (t *TaskWithCreator) GetCreator() *model.User {
+func (t *TaskExtension) GetCreator() *model.User {
 	return t.Creator
 }
 
-type TaskInfoWithCreator interface {
+func (t *TaskExtension) SetStartTime(startTime time.Time) {
+	t.startTime = &startTime
+}
+
+func (t *TaskExtension) GetStartTime() *time.Time {
+	return t.startTime
+}
+
+func (t *TaskExtension) SetEndTime(endTime time.Time) {
+	t.endTime = &endTime
+}
+
+func (t *TaskExtension) GetEndTime() *time.Time {
+	return t.endTime
+}
+
+func (t *TaskExtension) ClearEndTime() {
+	t.endTime = nil
+}
+
+func (t *TaskExtension) SetTotalBytes(totalBytes int64) {
+	t.totalBytes = totalBytes
+}
+
+func (t *TaskExtension) GetTotalBytes() int64 {
+	return t.totalBytes
+}
+
+type TaskExtensionInfo interface {
 	tache.TaskWithInfo
-	SetCreator(creator *model.User)
 	GetCreator() *model.User
+	GetStartTime() *time.Time
+	GetEndTime() *time.Time
+	GetTotalBytes() int64
 }

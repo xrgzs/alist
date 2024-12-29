@@ -6,6 +6,7 @@ import (
 	ftpserver "github.com/KirCute/ftpserverlib-pasvportmap"
 	"github.com/alist-org/alist/v3/internal/errs"
 	"github.com/alist-org/alist/v3/internal/fs"
+	"github.com/alist-org/alist/v3/internal/model"
 	"github.com/spf13/afero"
 	"os"
 	"time"
@@ -91,7 +92,12 @@ func (a *AferoAdapter) GetHandle(name string, flags int, offset int64) (ftpserve
 	if (flags & os.O_APPEND) != 0 {
 		return nil, errs.NotSupport
 	}
-	_, err := fs.Get(a.ctx, name, &fs.GetArgs{})
+	user := a.ctx.Value("user").(*model.User)
+	path, err := user.JoinPath(name)
+	if err != nil {
+		return nil, err
+	}
+	_, err = fs.Get(a.ctx, path, &fs.GetArgs{})
 	exists := err == nil
 	if (flags&os.O_CREATE) == 0 && !exists {
 		return nil, errs.ObjectNotFound
@@ -102,12 +108,12 @@ func (a *AferoAdapter) GetHandle(name string, flags int, offset int64) (ftpserve
 	if (flags & os.O_WRONLY) != 0 {
 		trunc := (flags & os.O_TRUNC) != 0
 		if fileSize > 0 {
-			return OpenUploadWithLength(a.ctx, name, trunc, fileSize)
+			return OpenUploadWithLength(a.ctx, path, trunc, fileSize)
 		} else {
-			return OpenUpload(a.ctx, name, trunc)
+			return OpenUpload(a.ctx, path, trunc)
 		}
 	}
-	return OpenDownload(a.ctx, name)
+	return OpenDownload(a.ctx, path)
 }
 
 func (a *AferoAdapter) SetNextFileSize(size int64) {

@@ -16,11 +16,12 @@ type AddUrlArgs struct {
 }
 
 type Status struct {
-	Progress  float64
-	NewGID    string
-	Completed bool
-	Status    string
-	Err       error
+	TotalBytes int64
+	Progress   float64
+	NewGID     string
+	Completed  bool
+	Status     string
+	Err        error
 }
 
 type Tool interface {

@@ -57,7 +57,7 @@ func FsStream(c *gin.Context) {
 		Mimetype:     c.GetHeader("Content-Type"),
 		WebPutAsTask: asTask,
 	}
-	var t task.TaskInfoWithCreator
+	var t task.TaskExtensionInfo
 	if asTask {
 		t, err = fs.PutAsTask(c, dir, s)
 	} else {
@@ -122,7 +122,7 @@ func FsForm(c *gin.Context) {
 		Mimetype:     file.Header.Get("Content-Type"),
 		WebPutAsTask: asTask,
 	}
-	var t task.TaskInfoWithCreator
+	var t task.TaskExtensionInfo
 	if asTask {
 		s.Reader = struct {
 			io.Reader

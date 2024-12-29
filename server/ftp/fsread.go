@@ -6,10 +6,8 @@ import (
 	"github.com/alist-org/alist/v3/internal/errs"
 	"github.com/alist-org/alist/v3/internal/fs"
 	"github.com/alist-org/alist/v3/internal/model"
-	"github.com/alist-org/alist/v3/internal/net"
 	"github.com/alist-org/alist/v3/internal/op"
-	"github.com/alist-org/alist/v3/pkg/http_range"
-	"github.com/alist-org/alist/v3/pkg/utils"
+	"github.com/alist-org/alist/v3/internal/stream"
 	"github.com/alist-org/alist/v3/server/common"
 	"github.com/pkg/errors"
 	"io"
@@ -21,16 +19,11 @@ import (
 
 type FileDownloadProxy struct {
 	ftpserver.FileTransfer
-	reader  io.ReadCloser
-	closers *utils.Closers
+	reader io.ReadCloser
 }
 
-func OpenDownload(ctx context.Context, path string) (*FileDownloadProxy, error) {
+func OpenDownload(ctx context.Context, reqPath string) (*FileDownloadProxy, error) {
 	user := ctx.Value("user").(*model.User)
-	reqPath, err := user.JoinPath(path)
-	if err != nil {
-		return nil, err
-	}
 	meta, err := op.GetNearestMeta(reqPath)
 	if err != nil {
 		if !errors.Is(errors.Cause(err), errs.MetaNotFound) {
@@ -51,37 +44,15 @@ func OpenDownload(ctx context.Context, path string) (*FileDownloadProxy, error) 
 	if err != nil {
 		return nil, err
 	}
-	storage, err := fs.GetStorage(reqPath, &fs.GetStoragesArgs{})
+	fileStream := stream.FileStream{
+		Obj: obj,
+		Ctx: ctx,
+	}
+	ss, err := stream.NewSeekableStream(fileStream, link)
 	if err != nil {
 		return nil, err
 	}
-	if storage.GetStorage().ProxyRange {
-		common.ProxyRange(link, obj.GetSize())
-	}
-	reader, closers, err := proxy(link)
-	if err != nil {
-		return nil, err
-	}
-	return &FileDownloadProxy{reader: reader, closers: closers}, nil
-}
-
-func proxy(link *model.Link) (io.ReadCloser, *utils.Closers, error) {
-	if link.MFile != nil {
-		return link.MFile, nil, nil
-	} else if link.RangeReadCloser != nil {
-		rc, err := link.RangeReadCloser.RangeRead(context.Background(), http_range.Range{Length: -1})
-		if err != nil {
-			return nil, nil, err
-		}
-		closers := link.RangeReadCloser.GetClosers()
-		return rc, &closers, nil
-	} else {
-		res, err := net.RequestHttp(context.Background(), http.MethodGet, link.Header, link.URL)
-		if err != nil {
-			return nil, nil, err
-		}
-		return res.Body, nil, nil
-	}
+	return &FileDownloadProxy{reader: ss}, nil
 }
 
 func (f *FileDownloadProxy) Read(p []byte) (n int, err error) {
@@ -97,11 +68,6 @@ func (f *FileDownloadProxy) Seek(offset int64, whence int) (int64, error) {
 }
 
 func (f *FileDownloadProxy) Close() error {
-	defer func() {
-		if f.closers != nil {
-			_ = f.closers.Close()
-		}
-	}()
 	return f.reader.Close()
 }
 

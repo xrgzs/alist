@@ -12,6 +12,7 @@ import (
 	"github.com/pkg/errors"
 	"golang.org/x/crypto/ssh"
 	"net/http"
+	"time"
 )
 
 type SftpDriver struct {
@@ -35,6 +36,7 @@ func (d *SftpDriver) GetConfig() *sftpd.Config {
 		NoClientAuth:         true,
 		NoClientAuthCallback: d.NoClientAuth,
 		PasswordCallback:     d.PasswordAuth,
+		PublicKeyCallback:    d.PublicKeyAuth,
 		AuthLogCallback:      d.AuthLogCallback,
 		BannerCallback:       d.GetBanner,
 	}
@@ -85,14 +87,37 @@ func (d *SftpDriver) PasswordAuth(conn ssh.ConnMetadata, password []byte) (*ssh.
 	if err != nil {
 		return nil, err
 	}
+	if userObj.Disabled || !userObj.CanFTPAccess() {
+		return nil, errors.New("user is not allowed to access via SFTP")
+	}
 	passHash := model.StaticHash(string(password))
 	if err = userObj.ValidatePwdStaticHash(passHash); err != nil {
+		return nil, err
+	}
+	return nil, nil
+}
+
+func (d *SftpDriver) PublicKeyAuth(conn ssh.ConnMetadata, key ssh.PublicKey) (*ssh.Permissions, error) {
+	userObj, err := op.GetUserByName(conn.User())
+	if err != nil {
 		return nil, err
 	}
 	if userObj.Disabled || !userObj.CanFTPAccess() {
 		return nil, errors.New("user is not allowed to access via SFTP")
 	}
-	return nil, nil
+	keys, _, err := op.GetSSHPublicKeyByUserId(userObj.ID, 1, -1)
+	if err != nil {
+		return nil, err
+	}
+	marshal := string(key.Marshal())
+	for _, sk := range keys {
+		if marshal == sk.KeyStr {
+			sk.LastUsedTime = time.Now()
+			_ = op.UpdateSSHPublicKey(&sk)
+			return nil, nil
+		}
+	}
+	return nil, errors.New("public key refused")
 }
 
 func (d *SftpDriver) AuthLogCallback(conn ssh.ConnMetadata, method string, err error) {

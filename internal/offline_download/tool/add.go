@@ -29,7 +29,7 @@ type AddURLArgs struct {
 	DeletePolicy DeletePolicy
 }
 
-func AddURL(ctx context.Context, args *AddURLArgs) (task.TaskInfoWithCreator, error) {
+func AddURL(ctx context.Context, args *AddURLArgs) (task.TaskExtensionInfo, error) {
 	// get tool
 	tool, err := Tools.Get(args.Tool)
 	if err != nil {
@@ -77,11 +77,15 @@ func AddURL(ctx context.Context, args *AddURLArgs) (task.TaskInfoWithCreator, er
 		tempDir = args.DstDirPath
 		// 防止将下载好的文件删除
 		deletePolicy = DeleteNever
+	case "thunder":
+		tempDir = args.DstDirPath
+		// 防止将下载好的文件删除
+		deletePolicy = DeleteNever
 	}
 
 	taskCreator, _ := ctx.Value("user").(*model.User) // taskCreator is nil when convert failed
 	t := &DownloadTask{
-		TaskWithCreator: task.TaskWithCreator{
+		TaskExtension: task.TaskExtension{
 			Creator: taskCreator,
 		},
 		Url:          args.URL,

@@ -1,53 +1,54 @@
-package pikpak
+package thunder
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strconv"
 
-	"github.com/alist-org/alist/v3/drivers/pikpak"
+	"github.com/alist-org/alist/v3/drivers/thunder"
 	"github.com/alist-org/alist/v3/internal/errs"
 	"github.com/alist-org/alist/v3/internal/model"
 	"github.com/alist-org/alist/v3/internal/offline_download/tool"
 	"github.com/alist-org/alist/v3/internal/op"
 )
 
-type PikPak struct {
+type Thunder struct {
 	refreshTaskCache bool
 }
 
-func (p *PikPak) Name() string {
-	return "pikpak"
+func (t *Thunder) Name() string {
+	return "thunder"
 }
 
-func (p *PikPak) Items() []model.SettingItem {
+func (t *Thunder) Items() []model.SettingItem {
 	return nil
 }
 
-func (p *PikPak) Run(task *tool.DownloadTask) error {
+func (t *Thunder) Run(task *tool.DownloadTask) error {
 	return errs.NotSupport
 }
 
-func (p *PikPak) Init() (string, error) {
-	p.refreshTaskCache = false
+func (t *Thunder) Init() (string, error) {
+	t.refreshTaskCache = false
 	return "ok", nil
 }
 
-func (p *PikPak) IsReady() bool {
+func (t *Thunder) IsReady() bool {
 	return true
 }
 
-func (p *PikPak) AddURL(args *tool.AddUrlArgs) (string, error) {
+func (t *Thunder) AddURL(args *tool.AddUrlArgs) (string, error) {
 	// 添加新任务刷新缓存
-	p.refreshTaskCache = true
+	t.refreshTaskCache = true
 	// args.TempDir 已经被修改为了 DstDirPath
 	storage, actualPath, err := op.GetStorageAndActualPath(args.TempDir)
 	if err != nil {
 		return "", err
 	}
-	pikpakDriver, ok := storage.(*pikpak.PikPak)
+	thunderDriver, ok := storage.(*thunder.Thunder)
 	if !ok {
-		return "", fmt.Errorf("unsupported storage driver for offline download, only Pikpak is supported")
+		return "", fmt.Errorf("unsupported storage driver for offline download, only Thunder is supported")
 	}
 
 	ctx := context.Background()
@@ -56,41 +57,41 @@ func (p *PikPak) AddURL(args *tool.AddUrlArgs) (string, error) {
 		return "", err
 	}
 
-	t, err := pikpakDriver.OfflineDownload(ctx, args.Url, parentDir, "")
+	task, err := thunderDriver.OfflineDownload(ctx, args.Url, parentDir, "")
 	if err != nil {
 		return "", fmt.Errorf("failed to add offline download task: %w", err)
 	}
 
-	return t.ID, nil
+	return task.ID, nil
 }
 
-func (p *PikPak) Remove(task *tool.DownloadTask) error {
+func (t *Thunder) Remove(task *tool.DownloadTask) error {
 	storage, _, err := op.GetStorageAndActualPath(task.DstDirPath)
 	if err != nil {
 		return err
 	}
-	pikpakDriver, ok := storage.(*pikpak.PikPak)
+	thunderDriver, ok := storage.(*thunder.Thunder)
 	if !ok {
-		return fmt.Errorf("unsupported storage driver for offline download, only Pikpak is supported")
+		return fmt.Errorf("unsupported storage driver for offline download, only Thunder is supported")
 	}
 	ctx := context.Background()
-	err = pikpakDriver.DeleteOfflineTasks(ctx, []string{task.GID}, false)
+	err = thunderDriver.DeleteOfflineTasks(ctx, []string{task.GID}, false)
 	if err != nil {
 		return err
 	}
 	return nil
 }
 
-func (p *PikPak) Status(task *tool.DownloadTask) (*tool.Status, error) {
+func (t *Thunder) Status(task *tool.DownloadTask) (*tool.Status, error) {
 	storage, _, err := op.GetStorageAndActualPath(task.DstDirPath)
 	if err != nil {
 		return nil, err
 	}
-	pikpakDriver, ok := storage.(*pikpak.PikPak)
+	thunderDriver, ok := storage.(*thunder.Thunder)
 	if !ok {
-		return nil, fmt.Errorf("unsupported storage driver for offline download, only Pikpak is supported")
+		return nil, fmt.Errorf("unsupported storage driver for offline download, only Thunder is supported")
 	}
-	tasks, err := p.GetTasks(pikpakDriver)
+	tasks, err := t.GetTasks(thunderDriver)
 	if err != nil {
 		return nil, err
 	}
@@ -111,7 +112,7 @@ func (p *PikPak) Status(task *tool.DownloadTask) (*tool.Status, error) {
 				s.TotalBytes = 0
 			}
 			if t.Phase == "PHASE_TYPE_ERROR" {
-				s.Err = fmt.Errorf(t.Message)
+				s.Err = errors.New(t.Message)
 			}
 			return s, nil
 		}
@@ -121,5 +122,5 @@ func (p *PikPak) Status(task *tool.DownloadTask) (*tool.Status, error) {
 }
 
 func init() {
-	tool.Tools.Add(&PikPak{})
+	tool.Tools.Add(&Thunder{})
 }

@@ -26,12 +26,13 @@ func initUser() {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			salt := random.String(16)
 			admin = &model.User{
-				Username: "admin",
-				Salt:     salt,
-				PwdHash:  model.TwoHashPwd(adminPassword, salt),
-				Role:     model.ADMIN,
-				BasePath: "/",
-				Authn:    "[]",
+				Username:   "admin",
+				Salt:       salt,
+				PwdHash:    model.TwoHashPwd(adminPassword, salt),
+				Role:       model.ADMIN,
+				BasePath:   "/",
+				Authn:      "[]",
+				Permission: 0xFF, // 0(can see hidden) - 7(can remove)
 			}
 			if err := op.CreateUser(admin); err != nil {
 				panic(err)

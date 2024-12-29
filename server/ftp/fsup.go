@@ -29,10 +29,6 @@ type FileUploadProxy struct {
 
 func uploadAuth(ctx context.Context, path string) error {
 	user := ctx.Value("user").(*model.User)
-	path, err := user.JoinPath(path)
-	if err != nil {
-		return err
-	}
 	meta, err := op.GetNearestMeta(stdpath.Dir(path))
 	if err != nil {
 		if !errors.Is(errors.Cause(err), errs.MetaNotFound) {
