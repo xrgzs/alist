@@ -90,6 +90,7 @@ func Proxy(c *gin.Context) {
 			Header:  c.Request.Header,
 			Type:    c.Query("type"),
 			HttpReq: c.Request,
+			Proxy:   true,
 		})
 		if err != nil {
 			common.ErrorResp(c, err, 500)

@@ -21,6 +21,7 @@ type LinkArgs struct {
 	Header  http.Header
 	Type    string
 	HttpReq *http.Request
+	Proxy   bool
 }
 
 type Link struct {
