@@ -5,7 +5,6 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"math"
 	"net/http"
 	"strconv"
 	"strings"
@@ -89,7 +88,7 @@ func (d Downloader) Download(ctx context.Context, p *HttpRequestParams) (readClo
 // downloader is the implementation structure used internally by Downloader.
 type downloader struct {
 	ctx    context.Context
-	cancel context.CancelFunc
+	cancel context.CancelCauseFunc
 	cfg    Downloader
 
 	params       *HttpRequestParams //http request params
@@ -110,7 +109,7 @@ type downloader struct {
 
 // download performs the implementation of the object download across ranged GETs.
 func (d *downloader) download() (io.ReadCloser, error) {
-	d.ctx, d.cancel = context.WithCancel(d.ctx)
+	d.ctx, d.cancel = context.WithCancelCause(d.ctx)
 
 	pos := d.params.Range.Start
 	maxPos := d.params.Range.Start + d.params.Range.Length
@@ -190,14 +189,13 @@ func (d *downloader) sendChunkTask(newConcurrency bool) {
 
 // when the final reader Close, we interrupt
 func (d *downloader) interrupt() error {
-
-	d.cancel()
 	if d.written != d.params.Range.Length {
 		log.Debugf("Downloader interrupt before finish")
 		if d.getErr() == nil {
 			d.setErr(fmt.Errorf("interrupted"))
 		}
 	}
+	d.cancel(d.err)
 	defer func() {
 		close(d.chunkChannel)
 		for _, buf := range d.bufs {
@@ -242,8 +240,13 @@ func (d *downloader) downloadPart() {
 			if err == errCancelConcurrency {
 				return
 			}
+			if err == context.Canceled {
+				if e := context.Cause(d.ctx); e != nil {
+					err = e
+				}
+			}
 			d.setErr(err)
-			d.cancel()
+			d.cancel(err)
 		}
 	}
 }
@@ -369,7 +372,7 @@ func (d *downloader) getParamsFromChunk(ch *chunk) *HttpRequestParams {
 
 func (d *downloader) checkTotalBytes(resp *http.Response) error {
 	var err error
-	var totalBytes int64 = math.MinInt64
+	totalBytes := int64(-1)
 	contentRange := resp.Header.Get("Content-Range")
 	if len(contentRange) == 0 {
 		// ContentRange is nil when the full file contents is provided, and
@@ -403,7 +406,7 @@ func (d *downloader) checkTotalBytes(resp *http.Response) error {
 	if err != nil {
 		// _ = d.interrupt()
 		d.setErr(err)
-		d.cancel()
+		d.cancel(err)
 	}
 	return err
 
@@ -511,6 +514,11 @@ func (mr MultiReadCloser) Read(p []byte) (n int, err error) {
 		mr.cfg.rPos++
 		//current.Close()
 		return n, nil
+	}
+	if err == context.Canceled {
+		if e := context.Cause(mr.cfg.curBuf.ctx); e != nil {
+			err = e
+		}
 	}
 	return n, err
 }
