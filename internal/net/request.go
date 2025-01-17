@@ -21,7 +21,7 @@ import (
 
 // DefaultDownloadPartSize is the default range of bytes to get at a time when
 // using Download().
-const DefaultDownloadPartSize = 1024 * 1024 * 10
+const DefaultDownloadPartSize = utils.MB * 10
 
 // DefaultDownloadConcurrency is the default number of goroutines to spin up
 // when using Download().
@@ -48,12 +48,7 @@ type Downloader struct {
 type HttpRequestFunc func(ctx context.Context, params *HttpRequestParams) (*http.Response, error)
 
 func NewDownloader(options ...func(*Downloader)) *Downloader {
-	d := &Downloader{
-		HttpClient:         DefaultHttpRequestFunc,
-		PartSize:           DefaultDownloadPartSize,
-		PartBodyMaxRetries: DefaultPartBodyMaxRetries,
-		Concurrency:        DefaultDownloadConcurrency,
-	}
+	d := &Downloader{}
 	for _, option := range options {
 		option(d)
 	}
@@ -75,14 +70,17 @@ func (d Downloader) Download(ctx context.Context, p *HttpRequestParams) (readClo
 
 	// Ensures we don't need nil checks later on
 
-	impl.partBodyMaxRetries = d.PartBodyMaxRetries
-
 	if impl.cfg.Concurrency == 0 {
 		impl.cfg.Concurrency = DefaultDownloadConcurrency
 	}
-
 	if impl.cfg.PartSize == 0 {
 		impl.cfg.PartSize = DefaultDownloadPartSize
+	}
+	if impl.cfg.HttpClient == nil {
+		impl.cfg.HttpClient = DefaultHttpRequestFunc
+	}
+	if impl.cfg.PartBodyMaxRetries == 0 {
+		impl.cfg.PartBodyMaxRetries = DefaultPartBodyMaxRetries
 	}
 
 	return impl.download()
@@ -107,7 +105,7 @@ type downloader struct {
 	written int64 //total bytes of file downloaded from remote
 	err     error
 
-	partBodyMaxRetries int
+	concurrency int
 }
 
 // download performs the implementation of the object download across ranged GETs.
@@ -119,26 +117,40 @@ func (d *downloader) download() (io.ReadCloser, error) {
 	id := 0
 	for pos < maxPos {
 		finalSize := int64(d.cfg.PartSize)
-		//check boundary
-		if pos+finalSize > maxPos {
-			finalSize = maxPos - pos
+		switch id {
+		case 0:
+			if d.params.Range.Length%finalSize > 0 {
+				// 最小分片在前面有助视频播放？
+				finalSize = d.params.Range.Length % finalSize
+			}
+		case 1:
+			if d.chunks[0].size < finalSize/2 {
+				// 最小分片太小就调整到一半
+				minSize := finalSize / 2
+				pos += minSize - d.chunks[0].size
+				finalSize += d.chunks[0].size - minSize
+				d.chunks[0].size = minSize
+			}
 		}
 		c := chunk{start: pos, size: finalSize, id: id}
 		d.chunks = append(d.chunks, c)
 		pos += finalSize
 		id++
 	}
+	log.Debugf("cfgConcurrency:%d", d.cfg.Concurrency)
 	if len(d.chunks) < d.cfg.Concurrency {
 		d.cfg.Concurrency = len(d.chunks)
 	}
 
 	if d.cfg.Concurrency == 1 {
+		d.concurrency = 1
 		resp, err := d.cfg.HttpClient(d.ctx, d.params)
 		if err != nil {
 			return nil, err
 		}
 		return resp.Body, nil
 	}
+	d.concurrency = d.cfg.Concurrency
 
 	// workers
 	d.chunkChannel = make(chan chunk, d.cfg.Concurrency)
@@ -146,25 +158,34 @@ func (d *downloader) download() (io.ReadCloser, error) {
 	for i := 0; i < d.cfg.Concurrency; i++ {
 		buf := NewBuf(d.ctx, d.cfg.PartSize, i)
 		d.bufs = append(d.bufs, buf)
-		go d.downloadPart()
 	}
-	// initial tasks
-	for i := 0; i < d.cfg.Concurrency; i++ {
-		d.sendChunkTask()
-	}
+
+	d.sendChunkTask(true)
 
 	var rc io.ReadCloser = NewMultiReadCloser(d.chunks[0].buf, d.interrupt, d.finishBuf)
 
 	// Return error
 	return rc, d.err
 }
-func (d *downloader) sendChunkTask() *chunk {
-	ch := &d.chunks[d.nextChunk]
-	ch.buf = d.getBuf(d.nextChunk)
-	ch.buf.Reset(int(ch.size))
-	d.chunkChannel <- *ch
-	d.nextChunk++
-	return ch
+
+func (d *downloader) sendChunkTask(newConcurrency bool) {
+	d.m.Lock()
+	defer d.m.Unlock()
+	if newConcurrency {
+		if d.concurrency <= 0 {
+			return
+		}
+		d.concurrency--
+		go d.downloadPart()
+	}
+	if d.nextChunk < len(d.chunks) {
+		ch := &d.chunks[d.nextChunk]
+		ch.buf = d.getBuf(d.nextChunk)
+		d.nextChunk++
+		ch.buf.Reset(int(ch.size))
+		ch.newConcurrency = newConcurrency
+		d.chunkChannel <- *ch
+	}
 }
 
 // when the final reader Close, we interrupt
@@ -182,6 +203,10 @@ func (d *downloader) interrupt() error {
 		for _, buf := range d.bufs {
 			buf.Close()
 		}
+		if d.concurrency > 0 {
+			d.concurrency = -d.concurrency
+		}
+		log.Debugf("maxConcurrency:%d", d.cfg.Concurrency+d.concurrency)
 	}()
 	return d.err
 }
@@ -194,9 +219,7 @@ func (d *downloader) finishBuf(id int) (isLast bool, buf *Buf) {
 		return true, nil
 	}
 
-	if d.nextChunk < len(d.chunks) {
-		d.sendChunkTask()
-	}
+	d.sendChunkTask(false)
 
 	return false, d.getBuf(id + 1)
 }
@@ -213,58 +236,106 @@ func (d *downloader) downloadPart() {
 		if d.getErr() != nil {
 			// Drain the channel if there is an error, to prevent deadlocking
 			// of download producer.
-			continue
+			break
 		}
-		log.Debugf("downloadPart tried to get chunk")
 		if err := d.downloadChunk(&c); err != nil {
+			if err == errCancelConcurrency {
+				return
+			}
 			d.setErr(err)
+			d.cancel()
 		}
 	}
 }
 
 // downloadChunk downloads the chunk
 func (d *downloader) downloadChunk(ch *chunk) error {
-	log.Debugf("start new chunk %+v buffer_id =%d", ch, ch.id)
-	var n int64
-	var err error
+	log.Debugf("start chunk_%d, %+v", ch.id, ch)
 	params := d.getParamsFromChunk(ch)
-	for retry := 0; retry <= d.partBodyMaxRetries; retry++ {
+	for retry := 0; retry <= d.cfg.PartBodyMaxRetries; retry++ {
 		if d.getErr() != nil {
-			return d.getErr()
+			return nil
 		}
-		n, err = d.tryDownloadChunk(params, ch)
+		n, err := d.tryDownloadChunk(params, ch)
 		if err == nil {
+			d.incrWritten(n)
+			log.Debugf("chunk_%d downloaded", ch.id)
 			break
 		}
-		// Check if the returned error is an errReadingBody.
-		// If err is errReadingBody this indicates that an error
-		// occurred while copying the http response body.
+		if d.getErr() != nil {
+			return nil
+		}
+		if utils.IsCanceled(d.ctx) {
+			return d.ctx.Err()
+		}
+		// Check if the returned error is an errNeedRetry.
 		// If this occurs we unwrap the err to set the underlying error
 		// and attempt any remaining retries.
-		if bodyErr, ok := err.(*errReadingBody); ok {
-			err = bodyErr.Unwrap()
+		if e, ok := err.(*errNeedRetry); ok {
+			err = e.Unwrap()
+			if n > 0 {
+				// 测试：下载时 断开 alist向云盘发起的下载连接
+				// 校验：下载完后校验文件哈希值 一致
+				d.incrWritten(n)
+				ch.start += n
+				ch.size -= n
+				params.Range.Start = ch.start
+				params.Range.Length = ch.size
+			}
+			log.Warnf("err chunk_%d, object part download error %s, retrying attempt %d. %v",
+				ch.id, params.URL, retry, err)
+		} else if err == errInfiniteRetry {
+			retry--
+			continue
 		} else {
 			return err
 		}
-
-		//ch.cur = 0
-
-		log.Debugf("object part body download interrupted %s, err, %v, retrying attempt %d",
-			params.URL, err, retry)
 	}
 
-	d.incrWritten(n)
-	log.Debugf("down_%d downloaded chunk", ch.id)
-	//ch.buf.buffer.wg1.Wait()
-	//log.Debugf("down_%d downloaded chunk,wg wait passed", ch.id)
-	return err
+	return nil
 }
 
-func (d *downloader) tryDownloadChunk(params *HttpRequestParams, ch *chunk) (int64, error) {
+var errCancelConcurrency = fmt.Errorf("cancel concurrency")
+var errInfiniteRetry = fmt.Errorf("infinite retry")
 
+func (d *downloader) tryDownloadChunk(params *HttpRequestParams, ch *chunk) (int64, error) {
 	resp, err := d.cfg.HttpClient(d.ctx, params)
 	if err != nil {
-		return 0, err
+		if resp == nil {
+			return 0, err
+		}
+		switch resp.StatusCode {
+		default:
+			return 0, err
+		case 429:
+		case 502:
+		case 503:
+		case 504:
+		}
+		if ch.id == 0 {
+			<-time.After(time.Millisecond * 200)
+			return 0, &errNeedRetry{err: err}
+		}
+		log.Debugf("err chunk_%d, try downloading:%v", ch.id, err)
+
+		// 迅雷云盘不开启 `视频URL` 超过一定并发就会返回503
+		// 继续增加并发 大概率也返回503
+		d.m.Lock()
+		isCancelConcurrency := ch.newConcurrency
+		if d.concurrency > 0 { // 取消剩余的并发任务
+			// 用于计算实际的并发数
+			d.concurrency = -d.concurrency
+			isCancelConcurrency = true
+		}
+		if isCancelConcurrency {
+			d.concurrency--
+			d.chunkChannel <- *ch
+			d.m.Unlock()
+			return 0, errCancelConcurrency
+		}
+		d.m.Unlock()
+		<-time.After(time.Millisecond * 200)
+		return 0, errInfiniteRetry
 	}
 	defer resp.Body.Close()
 	//only check file size on the first task
@@ -274,15 +345,15 @@ func (d *downloader) tryDownloadChunk(params *HttpRequestParams, ch *chunk) (int
 			return 0, err
 		}
 	}
-
+	d.sendChunkTask(true)
 	n, err := utils.CopyWithBuffer(ch.buf, resp.Body)
 
 	if err != nil {
-		return n, &errReadingBody{err: err}
+		return n, &errNeedRetry{err: err}
 	}
 	if n != ch.size {
 		err = fmt.Errorf("chunk download size incorrect, expected=%d, got=%d", ch.size, n)
-		return n, &errReadingBody{err: err}
+		return n, &errNeedRetry{err: err}
 	}
 
 	return n, nil
@@ -330,8 +401,9 @@ func (d *downloader) checkTotalBytes(resp *http.Response) error {
 		err = fmt.Errorf("expect file size=%d unmatch remote report size=%d, need refresh cache", d.params.Size, totalBytes)
 	}
 	if err != nil {
-		_ = d.interrupt()
+		// _ = d.interrupt()
 		d.setErr(err)
+		d.cancel()
 	}
 	return err
 
@@ -370,9 +442,7 @@ type chunk struct {
 	buf   *Buf
 	id    int
 
-	// Downloader takes range (start,length), but this chunk is requesting equal/sub range of it.
-	// To convert the writer to reader eventually, we need to write within the boundary
-	//boundary http_range.Range
+	newConcurrency bool
 }
 
 func DefaultHttpRequestFunc(ctx context.Context, params *HttpRequestParams) (*http.Response, error) {
@@ -380,7 +450,7 @@ func DefaultHttpRequestFunc(ctx context.Context, params *HttpRequestParams) (*ht
 
 	res, err := RequestHttp(ctx, "GET", header, params.URL)
 	if err != nil {
-		return nil, err
+		return res, err
 	}
 	return res, nil
 }
@@ -393,15 +463,15 @@ type HttpRequestParams struct {
 	//total file size
 	Size int64
 }
-type errReadingBody struct {
+type errNeedRetry struct {
 	err error
 }
 
-func (e *errReadingBody) Error() string {
-	return fmt.Sprintf("failed to read part body: %v", e.err)
+func (e *errNeedRetry) Error() string {
+	return e.err.Error()
 }
 
-func (e *errReadingBody) Unwrap() error {
+func (e *errNeedRetry) Unwrap() error {
 	return e.err
 }
 
@@ -525,5 +595,6 @@ func (br *Buf) Write(p []byte) (n int, err error) {
 }
 
 func (br *Buf) Close() {
+	br.buffer.Reset()
 	//close(br.notify)
 }
