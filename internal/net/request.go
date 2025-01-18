@@ -102,13 +102,15 @@ type downloader struct {
 	m sync.Mutex
 
 	nextChunk int //next chunk id
-	chunks    []chunk
 	bufs      []*Buf
-	//totalBytes int64
-	written int64 //total bytes of file downloaded from remote
-	err     error
+	written   int64 //total bytes of file downloaded from remote
+	err       error
 
-	concurrency int
+	concurrency int //剩余的并发数，递减。到0时停止并发
+	maxPart     int //有多少个分片
+	pos         int64
+	maxPos      int64
+	m2          sync.Mutex
 }
 
 type ConcurrencyLimit struct {
@@ -155,33 +157,12 @@ func (d *downloader) download() (io.ReadCloser, error) {
 	}
 	d.ctx, d.cancel = context.WithCancelCause(d.ctx)
 
-	pos := d.params.Range.Start
-	maxPos := d.params.Range.Start + d.params.Range.Length
-	id := 0
-	for pos < maxPos {
-		finalSize := int64(d.cfg.PartSize)
-		switch id {
-		case 0:
-			if d.params.Range.Length%finalSize > 0 {
-				// 最小分片在前面有助视频播放？
-				finalSize = d.params.Range.Length % finalSize
-			}
-		case 1:
-			if d.chunks[0].size < finalSize/2 {
-				// 最小分片太小就调整到一半
-				minSize := finalSize / 2
-				pos += minSize - d.chunks[0].size
-				finalSize += d.chunks[0].size - minSize
-				d.chunks[0].size = minSize
-			}
-		}
-		c := chunk{start: pos, size: finalSize, id: id}
-		d.chunks = append(d.chunks, c)
-		pos += finalSize
-		id++
+	maxPart := int(d.params.Range.Length / int64(d.cfg.PartSize))
+	if d.params.Range.Length%int64(d.cfg.PartSize) > 0 {
+		maxPart++
 	}
-	if len(d.chunks) < d.cfg.Concurrency {
-		d.cfg.Concurrency = len(d.chunks)
+	if maxPart < d.cfg.Concurrency {
+		d.cfg.Concurrency = maxPart
 	}
 	log.Debugf("cfgConcurrency:%d", d.cfg.Concurrency)
 
@@ -202,15 +183,13 @@ func (d *downloader) download() (io.ReadCloser, error) {
 	// workers
 	d.chunkChannel = make(chan chunk, d.cfg.Concurrency)
 
-	for i := 0; i < d.cfg.Concurrency; i++ {
-		buf := NewBuf(d.ctx, d.cfg.PartSize, i)
-		d.bufs = append(d.bufs, buf)
-	}
-
+	d.maxPart = maxPart
+	d.pos = d.params.Range.Start
+	d.maxPos = d.params.Range.Start + d.params.Range.Length
 	d.concurrency = d.cfg.Concurrency
 	d.sendChunkTask(true)
 
-	var rc io.ReadCloser = NewMultiReadCloser(d.chunks[0].buf, d.interrupt, d.finishBuf)
+	var rc io.ReadCloser = NewMultiReadCloser(d.bufs[0], d.interrupt, d.finishBuf)
 
 	// Return error
 	return rc, d.err
@@ -219,6 +198,7 @@ func (d *downloader) download() (io.ReadCloser, error) {
 func (d *downloader) sendChunkTask(newConcurrency bool) error {
 	d.m.Lock()
 	defer d.m.Unlock()
+	isNewBuf := d.concurrency > 0
 	if newConcurrency {
 		if d.concurrency <= 0 {
 			return nil
@@ -231,13 +211,48 @@ func (d *downloader) sendChunkTask(newConcurrency bool) error {
 		d.concurrency--
 		go d.downloadPart()
 	}
-	if d.nextChunk < len(d.chunks) {
-		ch := &d.chunks[d.nextChunk]
-		ch.buf = d.getBuf(d.nextChunk)
-		d.nextChunk++
-		ch.buf.Reset(int(ch.size))
+
+	var buf *Buf
+	if isNewBuf {
+		buf = NewBuf(d.ctx, d.cfg.PartSize)
+		d.bufs = append(d.bufs, buf)
+	} else {
+		buf = d.getBuf(d.nextChunk)
+	}
+
+	if d.pos < d.maxPos {
+		finalSize := int64(d.cfg.PartSize)
+		switch d.nextChunk {
+		case 0:
+			// 最小分片在前面有助视频播放？
+			firstSize := d.params.Range.Length % finalSize
+			if firstSize > 0 {
+				minSize := finalSize / 2
+				if firstSize < minSize { // 最小分片太小就调整到一半
+					finalSize = minSize
+				} else {
+					finalSize = firstSize
+				}
+			}
+		case 1:
+			firstSize := d.params.Range.Length % finalSize
+			minSize := finalSize / 2
+			if firstSize > 0 && firstSize < minSize {
+				finalSize += firstSize - minSize
+			}
+		}
+		buf.Reset(int(finalSize))
+		ch := chunk{
+			start: d.pos,
+			size:  finalSize,
+			id:    d.nextChunk,
+			buf:   buf,
+		}
 		ch.newConcurrency = newConcurrency
-		d.chunkChannel <- *ch
+		d.pos += finalSize
+		d.nextChunk++
+		d.chunkChannel <- ch
+		return nil
 	}
 	return nil
 }
@@ -264,17 +279,18 @@ func (d *downloader) interrupt() error {
 	return d.err
 }
 func (d *downloader) getBuf(id int) (b *Buf) {
-
-	return d.bufs[id%d.cfg.Concurrency]
+	return d.bufs[id%len(d.bufs)]
 }
-func (d *downloader) finishBuf(id int) (isLast bool, buf *Buf) {
-	if id >= len(d.chunks)-1 {
+func (d *downloader) finishBuf(id int) (isLast bool, nextBuf *Buf) {
+	if id >= d.maxPart-1 {
 		return true, nil
 	}
 
 	d.sendChunkTask(false)
 
-	return false, d.getBuf(id + 1)
+	nextBuf = d.getBuf(id + 1)
+	nextBuf.reading = true
+	return false, nextBuf
 }
 
 // downloadPart is an individual goroutine worker reading from the ch channel
@@ -373,7 +389,7 @@ func (d *downloader) tryDownloadChunk(params *HttpRequestParams, ch *chunk) (int
 		case 503:
 		case 504:
 		}
-		if ch.id == 0 {
+		if ch.id == 0 { //第1个任务 有限的重试，超过重试就会结束请求
 			<-time.After(time.Millisecond * 200)
 			return 0, &errNeedRetry{err: err}
 		}
@@ -395,7 +411,11 @@ func (d *downloader) tryDownloadChunk(params *HttpRequestParams, ch *chunk) (int
 			return 0, errCancelConcurrency
 		}
 		d.m.Unlock()
-		<-time.After(time.Millisecond * 200)
+		if !ch.buf.reading { //正在被读取的优先重试
+			d.m2.Lock()
+			defer d.m2.Unlock()
+			<-time.After(time.Millisecond * 200)
+		}
 		return 0, errInfiniteRetry
 	}
 	defer resp.Body.Close()
@@ -570,7 +590,6 @@ func (mr MultiReadCloser) Read(p []byte) (n int, err error) {
 		}
 		mr.cfg.curBuf = next
 		mr.cfg.rPos++
-		//current.Close()
 		return n, nil
 	}
 	if err == context.Canceled {
@@ -590,24 +609,25 @@ type Buf struct {
 	ctx    context.Context
 	off    int
 	rw     sync.Mutex
-	//notify chan struct{}
+
+	reading bool // 是否正在被读取
 }
 
 // NewBuf is a buffer that can have 1 read & 1 write at the same time.
 // when read is faster write, immediately feed data to read after written
-func NewBuf(ctx context.Context, maxSize int, id int) *Buf {
+func NewBuf(ctx context.Context, maxSize int) *Buf {
 	d := make([]byte, 0, maxSize)
 	return &Buf{
 		ctx:    ctx,
 		buffer: bytes.NewBuffer(d),
 		size:   maxSize,
-		//notify: make(chan struct{}),
 	}
 }
 func (br *Buf) Reset(size int) {
 	br.buffer.Reset()
 	br.size = size
 	br.off = 0
+	br.reading = false
 }
 
 func (br *Buf) Read(p []byte) (n int, err error) {
@@ -639,8 +659,6 @@ func (br *Buf) Read(p []byte) (n int, err error) {
 	select {
 	case <-br.ctx.Done():
 		return 0, br.ctx.Err()
-	//case <-br.notify:
-	//	return 0, nil
 	case <-time.After(time.Millisecond * 200):
 		return 0, nil
 	}
@@ -653,14 +671,9 @@ func (br *Buf) Write(p []byte) (n int, err error) {
 	br.rw.Lock()
 	defer br.rw.Unlock()
 	n, err = br.buffer.Write(p)
-	select {
-	//case br.notify <- struct{}{}:
-	default:
-	}
 	return
 }
 
 func (br *Buf) Close() {
 	br.buffer.Reset()
-	//close(br.notify)
 }
