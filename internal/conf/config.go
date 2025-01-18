@@ -104,6 +104,7 @@ type Config struct {
 	Log                   LogConfig   `json:"log"`
 	DelayedStart          int         `json:"delayed_start" env:"DELAYED_START"`
 	MaxConnections        int         `json:"max_connections" env:"MAX_CONNECTIONS"`
+	MaxConcurrency        int         `json:"max_concurrency" env:"MAX_CONCURRENCY"`
 	TlsInsecureSkipVerify bool        `json:"tls_insecure_skip_verify" env:"TLS_INSECURE_SKIP_VERIFY"`
 	Tasks                 TasksConfig `json:"tasks" envPrefix:"TASKS_"`
 	Cors                  Cors        `json:"cors" envPrefix:"CORS_"`
@@ -149,6 +150,7 @@ func DefaultConfig() *Config {
 			MaxAge:     28,
 		},
 		MaxConnections:        0,
+		MaxConcurrency:        64,
 		TlsInsecureSkipVerify: true,
 		Tasks: TasksConfig{
 			Download: TaskConfig{

@@ -29,6 +29,8 @@ const DefaultDownloadConcurrency = 2
 // DefaultPartBodyMaxRetries is the default number of retries to make when a part fails to download.
 const DefaultPartBodyMaxRetries = 3
 
+var DefaultConcurrencyLimit *ConcurrencyLimit
+
 type Downloader struct {
 	PartSize int
 
@@ -43,11 +45,16 @@ type Downloader struct {
 
 	//RequestParam        HttpRequestParams
 	HttpClient HttpRequestFunc
+
+	*ConcurrencyLimit
 }
 type HttpRequestFunc func(ctx context.Context, params *HttpRequestParams) (*http.Response, error)
 
 func NewDownloader(options ...func(*Downloader)) *Downloader {
-	d := &Downloader{}
+	d := &Downloader{ //允许不设置的选项
+		PartBodyMaxRetries: DefaultPartBodyMaxRetries,
+		ConcurrencyLimit:   DefaultConcurrencyLimit,
+	}
 	for _, option := range options {
 		option(d)
 	}
@@ -68,7 +75,7 @@ func (d Downloader) Download(ctx context.Context, p *HttpRequestParams) (readClo
 	impl := downloader{params: &finalP, cfg: d, ctx: ctx}
 
 	// Ensures we don't need nil checks later on
-
+	// 必需的选项
 	if impl.cfg.Concurrency == 0 {
 		impl.cfg.Concurrency = DefaultDownloadConcurrency
 	}
@@ -77,9 +84,6 @@ func (d Downloader) Download(ctx context.Context, p *HttpRequestParams) (readClo
 	}
 	if impl.cfg.HttpClient == nil {
 		impl.cfg.HttpClient = DefaultHttpRequestFunc
-	}
-	if impl.cfg.PartBodyMaxRetries == 0 {
-		impl.cfg.PartBodyMaxRetries = DefaultPartBodyMaxRetries
 	}
 
 	return impl.download()
@@ -107,8 +111,48 @@ type downloader struct {
 	concurrency int
 }
 
+type ConcurrencyLimit struct {
+	_m    sync.Mutex
+	Limit int // 需要大于0
+}
+
+var ErrExceedMaxConcurrency = fmt.Errorf("ExceedMaxConcurrency")
+
+func (l *ConcurrencyLimit) sub() error {
+	l._m.Lock()
+	defer l._m.Unlock()
+	if l.Limit-1 < 0 {
+		return ErrExceedMaxConcurrency
+	}
+	l.Limit--
+	// log.Debugf("ConcurrencyLimit.sub: %d", l.Limit)
+	return nil
+}
+func (l *ConcurrencyLimit) add() {
+	l._m.Lock()
+	defer l._m.Unlock()
+	l.Limit++
+	// log.Debugf("ConcurrencyLimit.add: %d", l.Limit)
+}
+
+// 检测是否超过限制
+func (d *downloader) concurrencyCheck() error {
+	if d.cfg.ConcurrencyLimit != nil {
+		return d.cfg.ConcurrencyLimit.sub()
+	}
+	return nil
+}
+func (d *downloader) concurrencyFinish() {
+	if d.cfg.ConcurrencyLimit != nil {
+		d.cfg.ConcurrencyLimit.add()
+	}
+}
+
 // download performs the implementation of the object download across ranged GETs.
 func (d *downloader) download() (io.ReadCloser, error) {
+	if err := d.concurrencyCheck(); err != nil {
+		return nil, err
+	}
 	d.ctx, d.cancel = context.WithCancelCause(d.ctx)
 
 	pos := d.params.Range.Start
@@ -136,20 +180,24 @@ func (d *downloader) download() (io.ReadCloser, error) {
 		pos += finalSize
 		id++
 	}
-	log.Debugf("cfgConcurrency:%d", d.cfg.Concurrency)
 	if len(d.chunks) < d.cfg.Concurrency {
 		d.cfg.Concurrency = len(d.chunks)
 	}
+	log.Debugf("cfgConcurrency:%d", d.cfg.Concurrency)
 
 	if d.cfg.Concurrency == 1 {
-		d.concurrency = 1
+		if d.cfg.ConcurrencyLimit != nil {
+			go func() {
+				<-d.ctx.Done()
+				d.concurrencyFinish()
+			}()
+		}
 		resp, err := d.cfg.HttpClient(d.ctx, d.params)
 		if err != nil {
 			return nil, err
 		}
 		return resp.Body, nil
 	}
-	d.concurrency = d.cfg.Concurrency
 
 	// workers
 	d.chunkChannel = make(chan chunk, d.cfg.Concurrency)
@@ -159,6 +207,7 @@ func (d *downloader) download() (io.ReadCloser, error) {
 		d.bufs = append(d.bufs, buf)
 	}
 
+	d.concurrency = d.cfg.Concurrency
 	d.sendChunkTask(true)
 
 	var rc io.ReadCloser = NewMultiReadCloser(d.chunks[0].buf, d.interrupt, d.finishBuf)
@@ -167,12 +216,17 @@ func (d *downloader) download() (io.ReadCloser, error) {
 	return rc, d.err
 }
 
-func (d *downloader) sendChunkTask(newConcurrency bool) {
+func (d *downloader) sendChunkTask(newConcurrency bool) error {
 	d.m.Lock()
 	defer d.m.Unlock()
 	if newConcurrency {
 		if d.concurrency <= 0 {
-			return
+			return nil
+		}
+		if d.nextChunk > 0 { // 第一个不检查，因为已经检查过了
+			if err := d.concurrencyCheck(); err != nil {
+				return err
+			}
 		}
 		d.concurrency--
 		go d.downloadPart()
@@ -185,6 +239,7 @@ func (d *downloader) sendChunkTask(newConcurrency bool) {
 		ch.newConcurrency = newConcurrency
 		d.chunkChannel <- *ch
 	}
+	return nil
 }
 
 // when the final reader Close, we interrupt
@@ -238,7 +293,7 @@ func (d *downloader) downloadPart() {
 		}
 		if err := d.downloadChunk(&c); err != nil {
 			if err == errCancelConcurrency {
-				return
+				break
 			}
 			if err == context.Canceled {
 				if e := context.Cause(d.ctx); e != nil {
@@ -249,17 +304,20 @@ func (d *downloader) downloadPart() {
 			d.cancel(err)
 		}
 	}
+	d.concurrencyFinish()
 }
 
 // downloadChunk downloads the chunk
 func (d *downloader) downloadChunk(ch *chunk) error {
 	log.Debugf("start chunk_%d, %+v", ch.id, ch)
 	params := d.getParamsFromChunk(ch)
+	var n int64
+	var err error
 	for retry := 0; retry <= d.cfg.PartBodyMaxRetries; retry++ {
 		if d.getErr() != nil {
 			return nil
 		}
-		n, err := d.tryDownloadChunk(params, ch)
+		n, err = d.tryDownloadChunk(params, ch)
 		if err == nil {
 			d.incrWritten(n)
 			log.Debugf("chunk_%d downloaded", ch.id)
@@ -291,11 +349,11 @@ func (d *downloader) downloadChunk(ch *chunk) error {
 			retry--
 			continue
 		} else {
-			return err
+			break
 		}
 	}
 
-	return nil
+	return err
 }
 
 var errCancelConcurrency = fmt.Errorf("cancel concurrency")

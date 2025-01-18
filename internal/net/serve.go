@@ -118,7 +118,11 @@ func ServeHTTP(w http.ResponseWriter, r *http.Request, name string, modTime time
 	case len(ranges) == 0:
 		reader, err := RangeReaderFunc(ctx, http_range.Range{Length: -1})
 		if err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
+			code = http.StatusRequestedRangeNotSatisfiable
+			if err == ErrExceedMaxConcurrency {
+				code = http.StatusTooManyRequests
+			}
+			http.Error(w, err.Error(), code)
 			return
 		}
 		sendContent = reader
@@ -137,7 +141,11 @@ func ServeHTTP(w http.ResponseWriter, r *http.Request, name string, modTime time
 		ra := ranges[0]
 		sendContent, err = RangeReaderFunc(ctx, ra)
 		if err != nil {
-			http.Error(w, err.Error(), http.StatusRequestedRangeNotSatisfiable)
+			code = http.StatusRequestedRangeNotSatisfiable
+			if err == ErrExceedMaxConcurrency {
+				code = http.StatusTooManyRequests
+			}
+			http.Error(w, err.Error(), code)
 			return
 		}
 		sendSize = ra.Length
@@ -194,7 +202,11 @@ func ServeHTTP(w http.ResponseWriter, r *http.Request, name string, modTime time
 			if written != sendSize {
 				log.Warnf("Maybe size incorrect or reader not giving correct/full data, or connection closed before finish. written bytes: %d ,sendSize:%d, ", written, sendSize)
 			}
-			http.Error(w, err.Error(), http.StatusInternalServerError)
+			code = http.StatusInternalServerError
+			if err == ErrExceedMaxConcurrency {
+				code = http.StatusTooManyRequests
+			}
+			http.Error(w, err.Error(), code)
 		}
 	}
 }
