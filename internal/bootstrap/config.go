@@ -9,6 +9,7 @@ import (
 	"github.com/alist-org/alist/v3/cmd/flags"
 	"github.com/alist-org/alist/v3/drivers/base"
 	"github.com/alist-org/alist/v3/internal/conf"
+	"github.com/alist-org/alist/v3/internal/net"
 	"github.com/alist-org/alist/v3/pkg/utils"
 	"github.com/caarlos0/env/v9"
 	log "github.com/sirupsen/logrus"
@@ -62,6 +63,9 @@ func InitConfig() {
 		if err != nil {
 			log.Fatalf("update config struct error: %+v", err)
 		}
+	}
+	if conf.Conf.MaxConcurrency > 0 {
+		net.DefaultConcurrencyLimit = &net.ConcurrencyLimit{Limit: conf.Conf.MaxConcurrency}
 	}
 	if !conf.Conf.Force {
 		confFromEnv()

@@ -32,10 +32,7 @@ func GetRangeReadCloserFromLink(size int64, link *model.Link) (model.RangeReadCl
 				HeaderRef: header,
 			}
 			rc, err := down.Download(ctx, req)
-			if err != nil {
-				return nil, errs.NewErr(err, "GetReadCloserFromLink failed")
-			}
-			return rc, nil
+			return rc, err
 
 		}
 		if len(link.URL) > 0 {
@@ -44,7 +41,7 @@ func GetRangeReadCloserFromLink(size int64, link *model.Link) (model.RangeReadCl
 				if response == nil {
 					return nil, fmt.Errorf("http request failure, err:%s", err)
 				}
-				return nil, fmt.Errorf("http request failure,status: %d err:%s", response.StatusCode, err)
+				return nil, err
 			}
 			if r.Start == 0 && (r.Length == -1 || r.Length == size) || response.StatusCode == http.StatusPartialContent ||
 				checkContentRange(&response.Header, r.Start) {
