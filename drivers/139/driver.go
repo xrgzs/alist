@@ -2,13 +2,11 @@ package _139
 
 import (
 	"context"
-	"encoding/base64"
 	"fmt"
 	"io"
 	"net/http"
 	"path"
 	"strconv"
-	"strings"
 	"time"
 
 	"github.com/alist-org/alist/v3/drivers/base"
@@ -42,7 +40,11 @@ func (d *Yun139) Init(ctx context.Context) error {
 		if d.Authorization == "" {
 			return fmt.Errorf("authorization is empty")
 		}
-		d.cron = cron.NewCron(time.Hour * 24 * 7)
+		err := d.refreshToken()
+		if err != nil {
+			return err
+		}
+		d.cron = cron.NewCron(time.Hour * 12)
 		d.cron.Do(func() {
 			err := d.refreshToken()
 			if err != nil {
@@ -67,28 +69,29 @@ func (d *Yun139) Init(ctx context.Context) error {
 	default:
 		return errs.NotImplement
 	}
-	if d.ref != nil {
-		return nil
-	}
-	decode, err := base64.StdEncoding.DecodeString(d.Authorization)
-	if err != nil {
-		return err
-	}
-	decodeStr := string(decode)
-	splits := strings.Split(decodeStr, ":")
-	if len(splits) < 2 {
-		return fmt.Errorf("authorization is invalid, splits < 2")
-	}
-	d.Account = splits[1]
-	_, err = d.post("/orchestration/personalCloud/user/v1.0/qryUserExternInfo", base.Json{
-		"qryUserExternInfoReq": base.Json{
-			"commonAccountInfo": base.Json{
-				"account":     d.getAccount(),
-				"accountType": 1,
-			},
-		},
-	}, nil)
-	return err
+	// if d.ref != nil {
+	// 	return nil
+	// }
+	// decode, err := base64.StdEncoding.DecodeString(d.Authorization)
+	// if err != nil {
+	// 	return err
+	// }
+	// decodeStr := string(decode)
+	// splits := strings.Split(decodeStr, ":")
+	// if len(splits) < 2 {
+	// 	return fmt.Errorf("authorization is invalid, splits < 2")
+	// }
+	// d.Account = splits[1]
+	// _, err = d.post("/orchestration/personalCloud/user/v1.0/qryUserExternInfo", base.Json{
+	// 	"qryUserExternInfoReq": base.Json{
+	// 		"commonAccountInfo": base.Json{
+	// 			"account":     d.getAccount(),
+	// 			"accountType": 1,
+	// 		},
+	// 	},
+	// }, nil)
+	// return err
+	return nil
 }
 
 func (d *Yun139) InitReference(storage driver.Driver) error {

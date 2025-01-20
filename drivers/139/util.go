@@ -54,17 +54,36 @@ func getTime(t string) time.Time {
 }
 
 func (d *Yun139) refreshToken() error {
-	if d.ref == nil {
+	if d.ref != nil {
 		return d.ref.refreshToken()
 	}
-	url := "https://aas.caiyun.feixin.10086.cn:443/tellin/authTokenRefresh.do"
-	var resp RefreshTokenResp
 	decode, err := base64.StdEncoding.DecodeString(d.Authorization)
 	if err != nil {
-		return err
+		return fmt.Errorf("authorization decode failed: %s", err)
 	}
 	decodeStr := string(decode)
 	splits := strings.Split(decodeStr, ":")
+	if len(splits) < 3 {
+		return fmt.Errorf("authorization is invalid, splits < 3")
+	}
+	strs := strings.Split(splits[2], "|")
+	if len(strs) < 4 {
+		return fmt.Errorf("authorization is invalid, strs < 4")
+	}
+	timestamp, err := strconv.ParseInt(strs[3], 10, 64)
+	if err != nil {
+		return fmt.Errorf("authorization is invalid")
+	}
+	if time.Now().UnixMilli() > timestamp {
+		return fmt.Errorf("authorization has expired")
+	}
+	if time.Now().UnixMilli()-timestamp > 1000*60*60*24*15 {
+		// Authorization有效期大于15天无需刷新
+		return nil
+	}
+
+	url := "https://aas.caiyun.feixin.10086.cn:443/tellin/authTokenRefresh.do"
+	var resp RefreshTokenResp
 	reqBody := "<root><token>" + splits[2] + "</token><account>" + splits[1] + "</account><clienttype>656</clienttype></root>"
 	_, err = base.RestyClient.R().
 		ForceContentType("application/xml").
