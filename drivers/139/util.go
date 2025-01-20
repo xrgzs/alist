@@ -70,16 +70,17 @@ func (d *Yun139) refreshToken() error {
 	if len(strs) < 4 {
 		return fmt.Errorf("authorization is invalid, strs < 4")
 	}
-	timestamp, err := strconv.ParseInt(strs[3], 10, 64)
+	expiration, err := strconv.ParseInt(strs[3], 10, 64)
 	if err != nil {
 		return fmt.Errorf("authorization is invalid")
 	}
-	if time.Now().UnixMilli() > timestamp {
-		return fmt.Errorf("authorization has expired")
-	}
-	if time.Now().UnixMilli()-timestamp > 1000*60*60*24*15 {
+	expiration -= time.Now().UnixMilli()
+	if expiration > 1000*60*60*24*15 {
 		// Authorization有效期大于15天无需刷新
 		return nil
+	}
+	if expiration < 0 {
+		return fmt.Errorf("authorization has expired")
 	}
 
 	url := "https://aas.caiyun.feixin.10086.cn:443/tellin/authTokenRefresh.do"
