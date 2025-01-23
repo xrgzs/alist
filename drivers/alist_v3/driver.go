@@ -108,19 +108,26 @@ func (d *AListV3) List(ctx context.Context, dir model.Obj, args model.ListArgs) 
 
 func (d *AListV3) Link(ctx context.Context, file model.Obj, args model.LinkArgs) (*model.Link, error) {
 	var resp common.Resp[FsGetResp]
+	var headers = make(map[string]string)
 	// if PassUAToUpsteam is true, then pass the user-agent to the upstream
-	userAgent := base.UserAgent
 	if d.PassUAToUpsteam {
-		userAgent = args.Header.Get("user-agent")
-		if userAgent == "" {
-			userAgent = base.UserAgent
+		userAgent := args.Header.Get("user-agent")
+		if userAgent != "" {
+			headers["user-agent"] = userAgent
+		}
+	}
+	// if PassXFPToUpsteam is true, then pass the x-forwarded-protocol to the upstream
+	if d.PassXFPToUpsteam {
+		XFP := args.Header.Get("x-forwarded-protocol")
+		if XFP != "" {
+			headers["x-forwarded-protocol"] = XFP
 		}
 	}
 	_, err := d.request("/fs/get", http.MethodPost, func(req *resty.Request) {
 		req.SetResult(&resp).SetBody(FsGetReq{
 			Path:     file.GetPath(),
 			Password: d.MetaPassword,
-		}).SetHeader("user-agent", userAgent)
+		}).SetHeaders(headers)
 	})
 	if err != nil {
 		return nil, err
