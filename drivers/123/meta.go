@@ -19,6 +19,7 @@ type Addition struct {
 	DeiveType    string `json:"devicetype" default:"M1810E5A"`
 	OsVersion    string `json:"osversion" default:"Android_8.1.0"`
 	LoginUuid    string `json:"loginuuid" default:""`
+	Domain       string `json:"domain" type:"text" required:"false" help:"Replace the domain of download link to prevent PCDN"`
 }
 
 var config = driver.Config{
