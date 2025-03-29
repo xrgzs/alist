@@ -12,6 +12,7 @@ type Addition struct {
 	//OrderBy        string `json:"order_by" type:"select" options:"file_name,size,update_at" default:"file_name"`
 	//OrderDirection string `json:"order_direction" type:"select" options:"asc,desc" default:"asc"`
 	AccessToken string `json:"accesstoken" type:"text"`
+	Domain      string `json:"domain" type:"text" required:"false" help:"Replace the domain of download link to prevent PCDN"`
 }
 
 var config = driver.Config{
