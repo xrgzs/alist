@@ -2,8 +2,9 @@ package fs
 
 import (
 	"context"
-	log "github.com/sirupsen/logrus"
 	"io"
+
+	log "github.com/sirupsen/logrus"
 
 	"github.com/alist-org/alist/v3/internal/driver"
 	"github.com/alist-org/alist/v3/internal/errs"
@@ -186,4 +187,13 @@ func PutURL(ctx context.Context, path, dstName, urlStr string) error {
 		return errs.NotImplement
 	}
 	return op.PutURL(ctx, storage, dstDirActualPath, dstName, urlStr)
+}
+
+func Sync(opt SyncOptions) (*SyncResult, error) {
+	result := &SyncResult{}
+	// 递归同步入口
+	if err := syncDir(opt, "", result); err != nil {
+		return nil, err
+	}
+	return result, nil
 }
