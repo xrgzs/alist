@@ -116,6 +116,11 @@ func (d *Pan123Share) Link(ctx context.Context, file model.Obj, args model.LinkA
 		} else if res.StatusCode() < 300 {
 			link.URL = utils.Json.Get(res.Body(), "data", "redirect_url").ToString()
 		}
+		if d.ref.Domain != "" {
+			parsedURL, _ := url.Parse(link.URL)
+			parsedURL.Host = d.ref.Domain
+			link.URL = parsedURL.String()
+		}
 		link.Header = http.Header{
 			"Referer": []string{"https://www.123pan.com/"},
 		}
