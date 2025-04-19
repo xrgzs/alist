@@ -2,9 +2,10 @@ package handles
 
 import (
 	"fmt"
-	"github.com/alist-org/alist/v3/internal/task"
 	"io"
 	stdpath "path"
+
+	"github.com/alist-org/alist/v3/internal/task"
 
 	"github.com/alist-org/alist/v3/internal/errs"
 	"github.com/alist-org/alist/v3/internal/fs"
@@ -367,4 +368,54 @@ func Link(c *gin.Context) {
 	}
 	common.SuccessResp(c, link)
 	return
+}
+
+type FSSyncReq struct {
+	LeftPath  string   `json:"left_path"`
+	RightPath string   `json:"right_path"`
+	Direction string   `json:"direction"`  // "left_to_right", "right_to_left", "bidirectional"
+	DiffTypes []string `json:"diff_types"` // "name", "size", "time"
+	Recursive bool     `json:"recursive"`
+}
+
+type FSSyncResult struct {
+	Copied    []string `json:"copied"`
+	Deleted   []string `json:"deleted"`
+	Skipped   []string `json:"skipped"`
+	Conflicts []string `json:"conflicts"`
+}
+
+// FsSync 同步文件或文件夹，支持单向/双向，差异类型可选
+func FsSync(c *gin.Context) {
+	var req FSSyncReq
+	if err := c.ShouldBind(&req); err != nil {
+		common.ErrorResp(c, err, 400)
+		return
+	}
+	user := c.MustGet("user").(*model.User)
+	leftPath, err := user.JoinPath(req.LeftPath)
+	if err != nil {
+		common.ErrorResp(c, err, 403)
+		return
+	}
+	rightPath, err := user.JoinPath(req.RightPath)
+	if err != nil {
+		common.ErrorResp(c, err, 403)
+		return
+	}
+	// 调用 fs.FSSync 进行同步
+	result, err := fs.Sync(c, fs.SyncOptions{
+		LeftPath:  leftPath,
+		RightPath: rightPath,
+		Direction: req.Direction,
+		DiffTypes: req.DiffTypes,
+		Recursive: req.Recursive,
+		User:      user,
+		Ctx:       c,
+	})
+	if err != nil {
+		common.ErrorResp(c, err, 500)
+		return
+	}
+	common.SuccessResp(c, result)
 }
