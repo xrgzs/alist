@@ -76,19 +76,21 @@ func (d *Doubao) List(ctx context.Context, dir model.Obj, args model.ListArgs) (
 	}
 
 	for _, child := range fileList {
-		files = append(files, &Object{
-			Object: model.Object{
-				ID:       child.ID,
-				Path:     child.ParentID,
-				Name:     child.Name,
-				Size:     child.Size,
-				Modified: time.Unix(child.UpdateTime, 0),
-				Ctime:    time.Unix(child.CreateTime, 0),
-				IsFolder: child.NodeType == 1,
-			},
-			Key:      child.Key,
-			NodeType: child.NodeType,
-		})
+		if child.Size <= 5368709120 {
+			files = append(files, &Object{
+				Object: model.Object{
+					ID:       child.ID,
+					Path:     child.ParentID,
+					Name:     child.Name,
+					Size:     child.Size,
+					Modified: time.Unix(child.UpdateTime, 0),
+					Ctime:    time.Unix(child.CreateTime, 0),
+					IsFolder: child.NodeType == 1,
+				},
+				Key:      child.Key,
+				NodeType: child.NodeType,
+			})
+		}
 	}
 
 	return files, nil
@@ -215,6 +217,9 @@ func (d *Doubao) Remove(ctx context.Context, obj model.Obj) error {
 }
 
 func (d *Doubao) Put(ctx context.Context, dstDir model.Obj, file model.FileStreamer, up driver.UpdateProgress) (model.Obj, error) {
+	if file.GetSize() > 5368709120 {
+		return nil, errors.New("file size exceeds 5GB")
+	}
 	// 根据MIME类型确定数据类型
 	mimetype := file.GetMimetype()
 	dataType := FileDataType
