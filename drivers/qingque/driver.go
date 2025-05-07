@@ -13,13 +13,13 @@ import (
 	"github.com/alist-org/alist/v3/pkg/cookie"
 	"github.com/alist-org/alist/v3/pkg/utils"
 	"github.com/go-resty/resty/v2"
-	"github.com/google/uuid"
 )
 
 type Qingque struct {
 	model.Storage
 	Addition
-	client *resty.Client
+	client     *resty.Client
+	IdentityId string
 }
 
 func (d *Qingque) Config() driver.Config {
@@ -33,9 +33,13 @@ func (d *Qingque) GetAddition() driver.Additional {
 func (d *Qingque) Init(ctx context.Context) error {
 	// TODO login / refresh token
 	//op.MustSaveDriverStorage(d)
-	d.client = base.RestyClient
+	d.client = base.NewRestyClient()
 	d.client.SetCookieJar(nil)
-	d.client.SetCookies(cookie.Parse(d.Cookie))
+	c := cookie.Parse(d.Cookie)
+	d.client.SetCookies(c)
+	if cookie.GetCookie(c, "Recent-Identity-Id") != nil {
+		d.IdentityId = cookie.GetCookie(c, "Recent-Identity-Id").Value
+	}
 	return nil
 }
 
@@ -50,8 +54,6 @@ func (d *Qingque) List(ctx context.Context, dir model.Obj, args model.ListArgs) 
 	var pageNum int64 = 1
 	for {
 		err := d.request(http.MethodGet, "/docs/subfolder/{docID}", func(req *resty.Request) {
-			req.SetHeader("rid", uuid.NewString())
-			req.SetHeader("identityId", dir.GetID())
 			req.SetPathParam("docID", dir.GetID())
 			req.SetQueryParams(map[string]string{
 				"um":           "false",
@@ -73,6 +75,11 @@ func (d *Qingque) List(ctx context.Context, dir model.Obj, args model.ListArgs) 
 		}
 	}
 	return utils.SliceConvert(f, func(src FileList) (model.Obj, error) {
+		// filter online document
+		// TODO: Implement online document
+		if src.DocTypeEn != "folder" && src.DocTypeEn != "yFile" {
+			return nil, nil
+		}
 		return &model.Object{
 			ID:       src.DocID,
 			Name:     src.DocName,
@@ -85,8 +92,18 @@ func (d *Qingque) List(ctx context.Context, dir model.Obj, args model.ListArgs) 
 }
 
 func (d *Qingque) Link(ctx context.Context, file model.Obj, args model.LinkArgs) (*model.Link, error) {
-	// TODO return link of file, required
-	return nil, errs.NotImplement
+	var r DownloadResp
+	err := d.request(http.MethodGet, "/docs/yfile/download-url/{docID}", func(req *resty.Request) {
+		req.SetPathParam("docID", file.GetID())
+		req.SetQueryParams(map[string]string{
+			"um":        "false",
+			"anonToken": "true", // true: support download without cookie
+		})
+	}, &r)
+	if err != nil {
+		return nil, err
+	}
+	return &model.Link{URL: r.FileURL}, nil
 }
 
 func (d *Qingque) MakeDir(ctx context.Context, parentDir model.Obj, dirName string) (model.Obj, error) {

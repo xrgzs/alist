@@ -125,3 +125,12 @@ type CosmoExtVoPage struct {
 type FileResp struct {
 	CosmoExtVoPage CosmoExtVoPage `json:"cosmoExtVoPage"`
 }
+type DownloadResp struct {
+	// CosmoID     string `json:"cosmoId"`
+	// FileName    string `json:"fileName"`
+	// FileSize    int    `json:"fileSize"`
+	// FileType    string `json:"fileType"`
+	FileURL string `json:"fileUrl"`
+	// IsWrite     bool   `json:"isWrite"`
+	// EncryptFlag bool   `json:"encryptFlag"`
+}

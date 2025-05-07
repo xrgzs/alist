@@ -5,6 +5,7 @@ import (
 	"errors"
 
 	"github.com/alist-org/alist/v3/drivers/base"
+	"github.com/google/uuid"
 )
 
 // do others that not defined in Driver interface
@@ -14,7 +15,11 @@ func (d *Qingque) request(method string, path string, callback base.ReqCallback,
 	req := d.client.R()
 	req.SetHeaders(map[string]string{
 		"Accept": "application/json",
+		"rid":    uuid.NewString(),
 	})
+	if d.IdentityId != "" {
+		req.SetHeader("identityId", d.IdentityId)
+	}
 
 	var r BaseResp
 	req.SetResult(&r)
