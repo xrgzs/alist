@@ -107,8 +107,7 @@ func (d *Qingque) Link(ctx context.Context, file model.Obj, args model.LinkArgs)
 }
 
 func (d *Qingque) MakeDir(ctx context.Context, parentDir model.Obj, dirName string) error {
-	var r FolderNewResp
-	err := d.request(http.MethodPost, "/docs", func(req *resty.Request) {
+	return d.request(http.MethodPost, "/docs", func(req *resty.Request) {
 		req.SetBody(base.Json{
 			"docTypeEn":   "folder",
 			"shareTypeEn": "normal",
@@ -117,35 +116,23 @@ func (d *Qingque) MakeDir(ctx context.Context, parentDir model.Obj, dirName stri
 			"userPhotoId": "",
 			"sendMessage": "true",
 		})
-	}, &r)
-	if err != nil {
-		return err
-	}
-	return nil
+	}, nil)
 }
 
 func (d *Qingque) Move(ctx context.Context, srcObj, dstDir model.Obj) error {
-	err := d.request(http.MethodPost, "/docs/move", func(req *resty.Request) {
+	return d.request(http.MethodPost, "/docs/move", func(req *resty.Request) {
 		req.SetBody(base.Json{
 			"shortcutIds":  []string{srcObj.(*Object).GetShortcutID()},
 			"toShortcutId": dstDir.(*Object).GetShortcutID(),
 		})
 	}, nil)
-	if err != nil {
-		return err
-	}
-	return nil
 }
 
 func (d *Qingque) Rename(ctx context.Context, srcObj model.Obj, newName string) error {
-	err := d.request(http.MethodPut, "/docs/rename/{docID}", func(req *resty.Request) {
+	return d.request(http.MethodPut, "/docs/rename/{docID}", func(req *resty.Request) {
 		req.SetPathParam("docID", srcObj.GetID())
 		req.SetBody(newName)
 	}, nil)
-	if err != nil {
-		return err
-	}
-	return nil
 }
 
 func (d *Qingque) Copy(ctx context.Context, srcObj, dstDir model.Obj) (model.Obj, error) {
@@ -155,16 +142,12 @@ func (d *Qingque) Copy(ctx context.Context, srcObj, dstDir model.Obj) (model.Obj
 }
 
 func (d *Qingque) Remove(ctx context.Context, obj model.Obj) error {
-	err := d.request(http.MethodPost, "/recycle-bins/delete-shortcuts", func(req *resty.Request) {
+	return d.request(http.MethodPost, "/recycle-bins/delete-shortcuts", func(req *resty.Request) {
 		req.SetBody(base.Json{
 			"shortcutIds": []string{obj.(*Object).GetShortcutID()},
 			"strategy":    "recursive",
 		})
 	}, nil)
-	if err != nil {
-		return err
-	}
-	return nil
 }
 
 func (d *Qingque) Put(ctx context.Context, dstDir model.Obj, file model.FileStreamer, up driver.UpdateProgress) (model.Obj, error) {
