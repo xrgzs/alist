@@ -150,12 +150,21 @@ func (d *Qingque) Rename(ctx context.Context, srcObj model.Obj, newName string) 
 
 func (d *Qingque) Copy(ctx context.Context, srcObj, dstDir model.Obj) (model.Obj, error) {
 	// TODO copy obj, optional
+	// Copy API has not been found yet
 	return nil, errs.NotImplement
 }
 
 func (d *Qingque) Remove(ctx context.Context, obj model.Obj) error {
-	// TODO remove obj, optional
-	return errs.NotImplement
+	err := d.request(http.MethodPost, "/recycle-bins/delete-shortcuts", func(req *resty.Request) {
+		req.SetBody(base.Json{
+			"shortcutIds": []string{obj.(*Object).GetShortcutID()},
+			"strategy":    "recursive",
+		})
+	}, nil)
+	if err != nil {
+		return err
+	}
+	return nil
 }
 
 func (d *Qingque) Put(ctx context.Context, dstDir model.Obj, file model.FileStreamer, up driver.UpdateProgress) (model.Obj, error) {
