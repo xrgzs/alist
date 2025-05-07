@@ -13,6 +13,7 @@ import (
 func (d *Qingque) request(method string, path string, callback base.ReqCallback, out any) error {
 	u := "https://docs.qingque.cn/merlot/api" + path
 	req := d.client.R()
+	req.SetQueryParam("um", "false")
 	req.SetHeaders(map[string]string{
 		"Accept": "application/json",
 		"rid":    uuid.NewString(),
@@ -45,7 +46,7 @@ func (d *Qingque) request(method string, path string, callback base.ReqCallback,
 		if err != nil {
 			return err
 		}
-		err = json.Unmarshal(marshal, out)
+		err = json.Unmarshal(marshal, &out)
 		if err != nil {
 			return err
 		}

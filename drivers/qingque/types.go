@@ -134,3 +134,11 @@ type DownloadResp struct {
 	// IsWrite     bool   `json:"isWrite"`
 	// EncryptFlag bool   `json:"encryptFlag"`
 }
+
+type FolderNewResp struct {
+	DocID string `json:"docId"`
+	// ShortcutID string `json:"shortcutId"`
+	DocTypeEn string `json:"docTypeEn"`
+	// OpenDocURL string `json:"openDocUrl"`
+	Cosmo any `json:"cosmo"`
+}

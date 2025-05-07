@@ -11,7 +11,6 @@ import (
 	"github.com/alist-org/alist/v3/internal/errs"
 	"github.com/alist-org/alist/v3/internal/model"
 	"github.com/alist-org/alist/v3/pkg/cookie"
-	"github.com/alist-org/alist/v3/pkg/utils"
 	"github.com/go-resty/resty/v2"
 )
 
@@ -50,13 +49,12 @@ func (d *Qingque) Drop(ctx context.Context) error {
 
 func (d *Qingque) List(ctx context.Context, dir model.Obj, args model.ListArgs) ([]model.Obj, error) {
 	var r FileResp
-	var f []FileList
+	var f []model.Obj
 	var pageNum int64 = 1
 	for {
 		err := d.request(http.MethodGet, "/docs/subfolder/{docID}", func(req *resty.Request) {
 			req.SetPathParam("docID", dir.GetID())
 			req.SetQueryParams(map[string]string{
-				"um":           "false",
 				"docTypeEn":    "all",
 				"orderTypeEn":  "asc",
 				"ownerTypeEn":  "ownerAll",
@@ -69,26 +67,26 @@ func (d *Qingque) List(ctx context.Context, dir model.Obj, args model.ListArgs) 
 		if err != nil {
 			return nil, err
 		}
-		f = append(f, r.CosmoExtVoPage.List...)
+		for _, l := range r.CosmoExtVoPage.List {
+			// filter online document
+			// TODO: Implement online document
+			if l.DocTypeEn == "folder" || l.DocTypeEn == "yFile" {
+				f = append(f, &model.Object{
+					ID:       l.DocID,
+					Name:     l.DocName,
+					Size:     l.FileSize,
+					Modified: time.UnixMilli(l.LastModifiedTime),
+					Ctime:    time.UnixMilli(l.CreateTime),
+					IsFolder: l.DocTypeEn == "folder",
+				})
+			}
+		}
+
 		if !r.CosmoExtVoPage.HasNext {
 			break
 		}
 	}
-	return utils.SliceConvert(f, func(src FileList) (model.Obj, error) {
-		// filter online document
-		// TODO: Implement online document
-		if src.DocTypeEn != "folder" && src.DocTypeEn != "yFile" {
-			return nil, nil
-		}
-		return &model.Object{
-			ID:       src.DocID,
-			Name:     src.DocName,
-			Size:     src.FileSize,
-			Modified: time.UnixMilli(src.LastModifiedTime),
-			Ctime:    time.UnixMilli(src.CreateTime),
-			IsFolder: src.DocTypeEn == "folder",
-		}, nil
-	})
+	return f, nil
 }
 
 func (d *Qingque) Link(ctx context.Context, file model.Obj, args model.LinkArgs) (*model.Link, error) {
@@ -96,7 +94,6 @@ func (d *Qingque) Link(ctx context.Context, file model.Obj, args model.LinkArgs)
 	err := d.request(http.MethodGet, "/docs/yfile/download-url/{docID}", func(req *resty.Request) {
 		req.SetPathParam("docID", file.GetID())
 		req.SetQueryParams(map[string]string{
-			"um":        "false",
 			"anonToken": "true", // true: support download without cookie
 		})
 	}, &r)
@@ -106,9 +103,22 @@ func (d *Qingque) Link(ctx context.Context, file model.Obj, args model.LinkArgs)
 	return &model.Link{URL: r.FileURL}, nil
 }
 
-func (d *Qingque) MakeDir(ctx context.Context, parentDir model.Obj, dirName string) (model.Obj, error) {
-	// TODO create folder, optional
-	return nil, errs.NotImplement
+func (d *Qingque) MakeDir(ctx context.Context, parentDir model.Obj, dirName string) error {
+	var r FolderNewResp
+	err := d.request(http.MethodPost, "/docs", func(req *resty.Request) {
+		req.SetBody(base.Json{
+			"docTypeEn":   "folder",
+			"shareTypeEn": "normal",
+			"parentId":    parentDir.GetID(),
+			"docName":     dirName,
+			"userPhotoId": "",
+			"sendMessage": "true",
+		})
+	}, &r)
+	if err != nil {
+		return err
+	}
+	return nil
 }
 
 func (d *Qingque) Move(ctx context.Context, srcObj, dstDir model.Obj) (model.Obj, error) {
