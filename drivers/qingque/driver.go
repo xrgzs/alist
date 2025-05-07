@@ -137,9 +137,15 @@ func (d *Qingque) Move(ctx context.Context, srcObj, dstDir model.Obj) error {
 	return nil
 }
 
-func (d *Qingque) Rename(ctx context.Context, srcObj model.Obj, newName string) (model.Obj, error) {
-	// TODO rename obj, optional
-	return nil, errs.NotImplement
+func (d *Qingque) Rename(ctx context.Context, srcObj model.Obj, newName string) error {
+	err := d.request(http.MethodPut, "/docs/rename/{docID}", func(req *resty.Request) {
+		req.SetPathParam("docID", srcObj.GetID())
+		req.SetBody(newName)
+	}, nil)
+	if err != nil {
+		return err
+	}
+	return nil
 }
 
 func (d *Qingque) Copy(ctx context.Context, srcObj, dstDir model.Obj) (model.Obj, error) {
