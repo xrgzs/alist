@@ -1,5 +1,16 @@
 package qingque
 
+import "github.com/alist-org/alist/v3/internal/model"
+
+type Object struct {
+	model.Object
+	ShortcutID string
+}
+
+func (d *Object) GetShortcutID() string {
+	return d.ShortcutID
+}
+
 type BaseResp struct {
 	Code       int    `json:"code"`
 	Message    string `json:"message"`
@@ -82,7 +93,7 @@ type FileList struct {
 	// HasSubFoldersWithoutShortcut bool         `json:"hasSubFoldersWithoutShortcut"`
 	// Role                         int          `json:"role"`
 	// ClassifyLevel                int          `json:"classifyLevel"`
-	// ShortcutID                   string       `json:"shortcutId"`
+	ShortcutID string `json:"shortcutId"`
 	// InKnowledgeBase              bool         `json:"inKnowledgeBase"`
 	// Movable                      bool         `json:"movable"`
 	// CanDelete                    bool         `json:"canDelete"`

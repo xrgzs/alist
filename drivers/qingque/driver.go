@@ -71,13 +71,16 @@ func (d *Qingque) List(ctx context.Context, dir model.Obj, args model.ListArgs) 
 			// filter online document
 			// TODO: Implement online document
 			if l.DocTypeEn == "folder" || l.DocTypeEn == "yFile" {
-				f = append(f, &model.Object{
-					ID:       l.DocID,
-					Name:     l.DocName,
-					Size:     l.FileSize,
-					Modified: time.UnixMilli(l.LastModifiedTime),
-					Ctime:    time.UnixMilli(l.CreateTime),
-					IsFolder: l.DocTypeEn == "folder",
+				f = append(f, &Object{
+					Object: model.Object{
+						ID:       l.DocID,
+						Name:     l.DocName,
+						Size:     l.FileSize,
+						Modified: time.UnixMilli(l.LastModifiedTime),
+						Ctime:    time.UnixMilli(l.CreateTime),
+						IsFolder: l.DocTypeEn == "folder",
+					},
+					ShortcutID: l.ShortcutID,
 				})
 			}
 		}
@@ -121,9 +124,17 @@ func (d *Qingque) MakeDir(ctx context.Context, parentDir model.Obj, dirName stri
 	return nil
 }
 
-func (d *Qingque) Move(ctx context.Context, srcObj, dstDir model.Obj) (model.Obj, error) {
-	// TODO move obj, optional
-	return nil, errs.NotImplement
+func (d *Qingque) Move(ctx context.Context, srcObj, dstDir model.Obj) error {
+	err := d.request(http.MethodPost, "/docs/move", func(req *resty.Request) {
+		req.SetBody(base.Json{
+			"shortcutIds":  []string{srcObj.(*Object).GetShortcutID()},
+			"toShortcutId": dstDir.(*Object).GetShortcutID(),
+		})
+	}, nil)
+	if err != nil {
+		return err
+	}
+	return nil
 }
 
 func (d *Qingque) Rename(ctx context.Context, srcObj model.Obj, newName string) (model.Obj, error) {
