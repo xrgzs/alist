@@ -106,7 +106,7 @@ type FileList struct {
 	// YfileType                    string       `json:"yfileType,omitempty"`
 	// YfileWidth                   int          `json:"yfileWidth,omitempty"`
 	// YfileHeight                  int          `json:"yfileHeight,omitempty"`
-	ThumbnailURL string `json:"thumbnailUrl,omitempty"`
+	// ThumbnailURL string `json:"thumbnailUrl,omitempty"` // only for online doc
 }
 type CosmoExtVoPage struct {
 	// Total            int           `json:"total"`

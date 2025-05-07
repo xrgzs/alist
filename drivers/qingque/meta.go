@@ -20,7 +20,7 @@ var config = driver.Config{
 	NoCache:           false,
 	NoUpload:          true, // TODO: support upload
 	NeedMs:            false,
-	DefaultRoot:       "",
+	DefaultRoot:       "mine",
 	CheckStatus:       false,
 	Alert:             "",
 	NoOverwriteUpload: false,

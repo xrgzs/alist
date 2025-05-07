@@ -13,6 +13,7 @@ import (
 	"github.com/alist-org/alist/v3/pkg/cookie"
 	"github.com/alist-org/alist/v3/pkg/utils"
 	"github.com/go-resty/resty/v2"
+	"github.com/google/uuid"
 )
 
 type Qingque struct {
@@ -48,8 +49,10 @@ func (d *Qingque) List(ctx context.Context, dir model.Obj, args model.ListArgs) 
 	var f []FileList
 	var pageNum int64 = 1
 	for {
-		err := d.request(http.MethodGet, "/docs/subfolder/mine", func(req *resty.Request) {
+		err := d.request(http.MethodGet, "/docs/subfolder/{docID}", func(req *resty.Request) {
+			req.SetHeader("rid", uuid.NewString())
 			req.SetHeader("identityId", dir.GetID())
+			req.SetPathParam("docID", dir.GetID())
 			req.SetQueryParams(map[string]string{
 				"um":           "false",
 				"docTypeEn":    "all",
