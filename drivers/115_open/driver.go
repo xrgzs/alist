@@ -117,6 +117,7 @@ func (d *Open115) MakeDir(ctx context.Context, parentDir model.Obj, dirName stri
 	if err != nil {
 		return nil, err
 	}
+	time.Sleep(800 * time.Millisecond)
 	return &Obj{
 		Fid:  resp.FileID,
 		Pid:  parentDir.GetID(),
