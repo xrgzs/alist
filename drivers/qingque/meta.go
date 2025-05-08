@@ -23,7 +23,7 @@ var config = driver.Config{
 	DefaultRoot:       "mine",
 	CheckStatus:       false,
 	Alert:             "",
-	NoOverwriteUpload: false,
+	NoOverwriteUpload: true,
 }
 
 func init() {
