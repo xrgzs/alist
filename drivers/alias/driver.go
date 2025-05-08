@@ -95,9 +95,15 @@ func (d *Alias) List(ctx context.Context, dir model.Obj, args model.ListArgs) ([
 	var objs []model.Obj
 	fsArgs := &fs.ListArgs{NoLog: true, Refresh: args.Refresh}
 	for _, dst := range dsts {
-		childCtx, cancel := context.WithTimeout(ctx, time.Duration(d.Timeout)*time.Second)
-		tmp, err := d.list(childCtx, dst, sub, fsArgs)
-		cancel()
+		var tmp []model.Obj
+		var err error
+		if d.Timeout > 0 {
+			childCtx, cancel := context.WithTimeout(ctx, time.Duration(d.Timeout)*time.Second)
+			tmp, err = d.list(childCtx, dst, sub, fsArgs)
+			cancel()
+		} else {
+			tmp, err = d.list(ctx, dst, sub, fsArgs)
+		}
 		if errors.Is(err, context.DeadlineExceeded) {
 			continue
 		}
@@ -115,11 +121,17 @@ func (d *Alias) Link(ctx context.Context, file model.Obj, args model.LinkArgs) (
 		return nil, errs.ObjectNotFound
 	}
 	for _, dst := range dsts {
-		childCtx, cancel := context.WithTimeout(ctx, time.Duration(d.Timeout)*time.Second)
-		link, err := d.link(childCtx, dst, sub, args)
-		cancel()
-		if errors.Is(err, context.DeadlineExceeded) {
-			continue
+		var link *model.Link
+		var err error
+		if d.Timeout > 0 {
+			childCtx, cancel := context.WithTimeout(ctx, time.Duration(d.Timeout)*time.Second)
+			link, err = d.link(childCtx, dst, sub, args)
+			cancel()
+			if errors.Is(err, context.DeadlineExceeded) {
+				continue
+			}
+		} else {
+			link, err = d.link(ctx, dst, sub, args)
 		}
 		if err == nil {
 			if !args.Redirect && len(link.URL) > 0 {
