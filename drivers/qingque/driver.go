@@ -1,7 +1,11 @@
 package qingque
 
 import (
+	"bytes"
 	"context"
+	"errors"
+	"fmt"
+	"io"
 	"net/http"
 	"strconv"
 	"time"
@@ -150,9 +154,124 @@ func (d *Qingque) Remove(ctx context.Context, obj model.Obj) error {
 	}, nil)
 }
 
-func (d *Qingque) Put(ctx context.Context, dstDir model.Obj, file model.FileStreamer, up driver.UpdateProgress) (model.Obj, error) {
-	// TODO upload file, optional
-	return nil, errs.NotImplement
+func (d *Qingque) Put(ctx context.Context, dstDir model.Obj, file model.FileStreamer, up driver.UpdateProgress) error {
+	// TODO: add option for chunksize
+	const chunkSize int64 = 5242880 // 5MB
+
+	// cannot upload empty file
+	if file.GetSize() <= 0 {
+		return errs.NotImplement
+	}
+
+	// step 1. create upload task and get upload server info
+	var r FileUploadResp
+	err := d.request(http.MethodPost, "/docs/yfile/v2/upload", func(req *resty.Request) {
+		req.SetBody(base.Json{
+			"fileName": file.GetName(),
+			// "fileType":   file.GetMimetype(),
+			"fileSize":   file.GetSize(),
+			"uploadType": "upload",
+		})
+	}, &r)
+	if err != nil {
+		return err
+	}
+	if len(r.TokenVo.HTTPEndpointList) == 0 {
+		return errors.New("cannot get upload domain")
+	}
+
+	// step 2. upload file to server
+	if file.GetSize() <= chunkSize {
+		// upload small size
+		req := base.RestyClient.R()
+		req.SetContext(ctx)
+		req.SetQueryParam("upload_token", r.TokenVo.Token)
+		req.SetHeader("Content-Type", "application/octet-stream")
+		req.SetContentLength(true)
+		req.SetBody(driver.NewLimitedUploadStream(ctx, file))
+		resp, err := req.Post("https://" + r.TokenVo.HTTPEndpointList[0] + "/api/upload")
+		if err != nil {
+			return err
+		}
+		if !resp.IsSuccess() {
+			return errors.New(resp.Status())
+		}
+	} else {
+		var urr UploadResumeResp
+		req := base.RestyClient.R()
+		req.SetContext(ctx)
+		req.SetQueryParam("upload_token", r.TokenVo.Token)
+		req.SetResult(&urr)
+		resp, err := req.Get("https://" + r.TokenVo.HTTPEndpointList[0] + "/api/upload/resume")
+		if err != nil {
+			return err
+		}
+		if !resp.IsSuccess() {
+			return errors.New(resp.Status())
+		}
+		if urr.Existed {
+			return errors.New("resume upload unsupported") // TODO: resume upload
+		}
+		// fragment upload
+		var finish int64 = 0
+		var chunk int64 = 0
+		for finish < file.GetSize() {
+			curChunk := chunk
+			left := file.GetSize() - finish
+			length := min(left, chunkSize)
+			// create closure
+			err = func() error {
+				buf := make([]byte, length)
+				n, err := io.ReadFull(file, buf)
+				if err != nil {
+					if err == io.ErrUnexpectedEOF {
+						return fmt.Errorf("can't read data, expected=%d, got=%d", len(buf), n)
+					}
+					return err
+				}
+				req.SetQueryParam("fragment_id", strconv.FormatInt(curChunk, 10)) // start with 0
+				req.SetContentLength(true)
+				req.SetHeader("Content-Range", fmt.Sprintf("bytes %d-%d/%d", finish, finish+length-1, file.GetSize()))
+				req.SetHeader("Content-Type", "application/octet-stream")
+				req.SetBody(driver.NewLimitedUploadStream(ctx, bytes.NewReader(buf)))
+				resp, err := req.Execute(http.MethodPost, "https://"+r.TokenVo.HTTPEndpointList[0]+"/api/upload/fragment")
+				defer resp.RawBody().Close()
+				if err != nil {
+					return err
+				}
+				if !resp.IsSuccess() {
+					return errors.New(resp.Status())
+				}
+				return nil
+			}()
+			if err != nil {
+				return err
+			}
+			finish += length
+			up(float64(finish) * 100 / float64(file.GetSize()))
+			chunk++
+		}
+		// send complete
+		req.SetQueryParam("fragment_count", strconv.FormatInt(chunk, 10)) // start with 1
+		resp, err = req.Post("https://" + r.TokenVo.HTTPEndpointList[0] + "/api/upload/complete")
+		if err != nil {
+			return err
+		}
+		if !resp.IsSuccess() {
+			return errors.New(resp.Status())
+		}
+	}
+
+	// step 3. report success
+	return d.request(http.MethodPost, "/docs/s3/feedback2", func(req *resty.Request) {
+		req.SetBody(base.Json{
+			"fileName":   file.GetName(),
+			"isSuccess":  true,
+			"id":         r.ID,
+			"parentId":   dstDir.GetID(),
+			"uploadType": "upload",
+		})
+	}, nil)
 }
 
 func (d *Qingque) GetArchiveMeta(ctx context.Context, obj model.Obj, args model.ArchiveArgs) (model.ArchiveMeta, error) {

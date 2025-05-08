@@ -18,7 +18,7 @@ var config = driver.Config{
 	OnlyLocal:         false,
 	OnlyProxy:         false,
 	NoCache:           false,
-	NoUpload:          true, // TODO: support upload
+	NoUpload:          false,
 	NeedMs:            false,
 	DefaultRoot:       "mine",
 	CheckStatus:       false,

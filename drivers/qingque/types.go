@@ -145,3 +145,29 @@ type DownloadResp struct {
 	// IsWrite     bool   `json:"isWrite"`
 	// EncryptFlag bool   `json:"encryptFlag"`
 }
+
+type FileUploadResp struct {
+	// FileURL interface{} `json:"fileUrl"`
+	ID      int `json:"id"`
+	TokenVo struct {
+		Token            string   `json:"token"`
+		HTTPEndpointList []string `json:"httpEndpointList"`
+		TokenID          string   `json:"tokenId"`
+		BlobStoreKey     string   `json:"blobStoreKey"`
+	} `json:"tokenVo"`
+}
+
+type UploadResumeResp struct {
+	Result        int           `json:"result"`
+	Existed       bool          `json:"existed"`
+	FragmentIndex int           `json:"fragment_index"`
+	FragmentList  []interface{} `json:"fragment_list"`
+	Endpoint      []struct {
+		Protocol string `json:"protocol"`
+		Host     string `json:"host"`
+		Port     int    `json:"port"`
+	} `json:"endpoint"`
+	FragmentIndexBytes int    `json:"fragment_index_bytes"`
+	TokenID            string `json:"token_id"`
+	PreferHTTP         bool   `json:"prefer_http"`
+}
