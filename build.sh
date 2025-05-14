@@ -28,11 +28,11 @@ ldflags="\
 "
 
 FetchWebDev() {
-  curl -L https://codeload.github.com/alist-org/web-dist/tar.gz/refs/heads/dev -o web-dist-dev.tar.gz
-  tar -zxvf web-dist-dev.tar.gz
+  curl -L https://codeload.github.com/xrgzs/alist-web/tar.gz/refs/heads/web-dist -o alist-web-web-dist.tar.gz
+  tar -zxvf alist-web-web-dist.tar.gz
   rm -rf public/dist
-  mv -f web-dist-dev/dist public
-  rm -rf web-dist-dev web-dist-dev.tar.gz
+  mv -f alist-web-web-dist/dist public
+  rm -rf alist-web-web-dist alist-web-web-dist.tar.gz
 }
 
 FetchWebRelease() {
@@ -94,7 +94,7 @@ BuildDocker() {
 PrepareBuildDockerMusl() {
   mkdir -p build/musl-libs
   BASE="https://musl.cc/"
-  FILES=(x86_64-linux-musl-cross aarch64-linux-musl-cross i486-linux-musl-cross s390x-linux-musl-cross armv6-linux-musleabihf-cross armv7l-linux-musleabihf-cross riscv64-linux-musl-cross powerpc64le-linux-musl-cross)
+  FILES=(x86_64-linux-musl-cross aarch64-linux-musl-cross)
   for i in "${FILES[@]}"; do
     url="${BASE}${i}.tgz"
     lib_tgz="build/${i}.tgz"
@@ -113,8 +113,8 @@ BuildDockerMultiplatform() {
   docker_lflags="--extldflags '-static -fpic' $ldflags"
   export CGO_ENABLED=1
 
-  OS_ARCHES=(linux-amd64 linux-arm64 linux-386 linux-s390x linux-riscv64 linux-ppc64le)
-  CGO_ARGS=(x86_64-linux-musl-gcc aarch64-linux-musl-gcc i486-linux-musl-gcc s390x-linux-musl-gcc riscv64-linux-musl-gcc powerpc64le-linux-musl-gcc)
+  OS_ARCHES=(linux-amd64 linux-arm64)
+  CGO_ARGS=(x86_64-linux-musl-gcc aarch64-linux-musl-gcc)
   for i in "${!OS_ARCHES[@]}"; do
     os_arch=${OS_ARCHES[$i]}
     cgo_cc=${CGO_ARGS[$i]}
@@ -125,20 +125,6 @@ BuildDockerMultiplatform() {
     export CC=${cgo_cc}
     echo "building for $os_arch"
     go build -o build/$os/$arch/alist -ldflags="$docker_lflags" -tags=jsoniter .
-  done
-
-  DOCKER_ARM_ARCHES=(linux-arm/v6 linux-arm/v7)
-  CGO_ARGS=(armv6-linux-musleabihf-gcc armv7l-linux-musleabihf-gcc)
-  GO_ARM=(6 7)
-  export GOOS=linux
-  export GOARCH=arm
-  for i in "${!DOCKER_ARM_ARCHES[@]}"; do
-    docker_arch=${DOCKER_ARM_ARCHES[$i]}
-    cgo_cc=${CGO_ARGS[$i]}
-    export GOARM=${GO_ARM[$i]}
-    export CC=${cgo_cc}
-    echo "building for $docker_arch"
-    go build -o build/${docker_arch%%-*}/${docker_arch##*-}/alist -ldflags="$docker_lflags" -tags=jsoniter .
   done
 }
 
