@@ -14,6 +14,7 @@ type Addition struct {
 	Token             string `json:"token"`
 	PassUAToUpsteam   bool   `json:"pass_ua_to_upsteam" default:"true"`
 	ForwardArchiveReq bool   `json:"forward_archive_requests" default:"true"`
+	Cdn               string `json:"cdn" default:""`
 }
 
 var config = driver.Config{

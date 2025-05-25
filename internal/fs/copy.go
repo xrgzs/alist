@@ -3,10 +3,11 @@ package fs
 import (
 	"context"
 	"fmt"
-	"github.com/alist-org/alist/v3/internal/errs"
 	"net/http"
 	stdpath "path"
 	"time"
+
+	"github.com/alist-org/alist/v3/internal/errs"
 
 	"github.com/alist-org/alist/v3/internal/conf"
 	"github.com/alist-org/alist/v3/internal/driver"
@@ -74,6 +75,15 @@ func _copy(ctx context.Context, srcObjPath, dstDirPath string, lazyCache ...bool
 		err = op.Copy(ctx, srcStorage, srcObjActualPath, dstDirActualPath, lazyCache...)
 		if !errors.Is(err, errs.NotImplement) && !errors.Is(err, errs.NotSupport) {
 			return nil, err
+		}
+	}
+	// check if the same CopyTask already exists
+	for _, t := range CopyTaskManager.GetAll() {
+		if t.SrcObjPath == srcObjActualPath &&
+			t.DstDirPath == dstDirActualPath &&
+			t.SrcStorageMp == srcStorage.GetStorage().MountPath &&
+			t.DstStorageMp == dstStorage.GetStorage().MountPath {
+			return t, nil
 		}
 	}
 	if ctx.Value(conf.NoTaskKey) != nil {
