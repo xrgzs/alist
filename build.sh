@@ -36,11 +36,11 @@ FetchWebDev() {
 }
 
 FetchWebRelease() {
-  curl -L https://github.com/alist-org/alist-web/releases/latest/download/dist.tar.gz -o dist.tar.gz
-  tar -zxvf dist.tar.gz
+  curl -L https://github.com/xrgzs/alist-web/releases/latest/download/web-dist.tar.gz -o web-dist.tar.gz
+  tar -zxvf web-dist.tar.gz
   rm -rf public/dist
-  mv -f dist public
-  rm -rf dist.tar.gz
+  mv -f web-dist public
+  rm -rf web-dist.tar.gz
 }
 
 BuildWinArm64() {
@@ -59,7 +59,7 @@ BuildDev() {
   rm -rf .git/
   mkdir -p "dist"
   muslflags="--extldflags '-static -fpic' $ldflags"
-  BASE="https://musl.nn.ci/"
+  BASE="https://musl.cc/"
   FILES=(x86_64-linux-musl-cross aarch64-linux-musl-cross)
   for i in "${FILES[@]}"; do
     url="${BASE}${i}.tgz"
@@ -144,7 +144,7 @@ BuildReleaseLinuxMusl() {
   rm -rf .git/
   mkdir -p "build"
   muslflags="--extldflags '-static -fpic' $ldflags"
-  BASE="https://musl.nn.ci/"
+  BASE="https://musl.cc/"
   FILES=(x86_64-linux-musl-cross aarch64-linux-musl-cross mips-linux-musl-cross mips64-linux-musl-cross mips64el-linux-musl-cross mipsel-linux-musl-cross powerpc64le-linux-musl-cross s390x-linux-musl-cross)
   for i in "${FILES[@]}"; do
     url="${BASE}${i}.tgz"
@@ -170,7 +170,7 @@ BuildReleaseLinuxMuslArm() {
   rm -rf .git/
   mkdir -p "build"
   muslflags="--extldflags '-static -fpic' $ldflags"
-  BASE="https://musl.nn.ci/"
+  BASE="https://musl.cc/"
 #  FILES=(arm-linux-musleabi-cross arm-linux-musleabihf-cross armeb-linux-musleabi-cross armeb-linux-musleabihf-cross armel-linux-musleabi-cross armel-linux-musleabihf-cross armv5l-linux-musleabi-cross armv5l-linux-musleabihf-cross armv6-linux-musleabi-cross armv6-linux-musleabihf-cross armv7l-linux-musleabihf-cross armv7m-linux-musleabi-cross armv7r-linux-musleabihf-cross)
   FILES=(arm-linux-musleabi-cross arm-linux-musleabihf-cross armel-linux-musleabi-cross armel-linux-musleabihf-cross armv5l-linux-musleabi-cross armv5l-linux-musleabihf-cross armv6-linux-musleabi-cross armv6-linux-musleabihf-cross armv7l-linux-musleabihf-cross armv7m-linux-musleabi-cross armv7r-linux-musleabihf-cross)
   for i in "${FILES[@]}"; do
