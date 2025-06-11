@@ -1,9 +1,8 @@
-FROM alpine:edge
+FROM alpine:latest
 
 ARG TARGETPLATFORM
 ARG INSTALL_FFMPEG=false
 ARG INSTALL_ARIA2=false
-LABEL MAINTAINER="i@nn.ci"
 
 WORKDIR /opt/alist/
 
@@ -24,7 +23,7 @@ RUN apk update && \
         /opt/aria2/.aria2/tracker.sh ; \
     rm -rf /var/cache/apk/*
 
-COPY --chmod=755 /build/${TARGETPLATFORM}/alist ./
+COPY --chmod=755 /build/alist-${TARGETPLATFORM} ./alist
 COPY --chmod=755 entrypoint.sh /entrypoint.sh
 RUN /entrypoint.sh version
 

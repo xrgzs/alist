@@ -3,7 +3,7 @@ name: release_docker
 on:
   push:
     tags:
-      - 'v*'
+      - "v*"
     branches:
       - main
   pull_request:
@@ -21,8 +21,8 @@ env:
   REGISTRY: ghcr.io/${{ github.actor }}/alist
   REGISTRY_USERNAME: ${{ github.actor }}
   REGISTRY_PASSWORD: ${{ secrets.GITHUB_TOKEN }}
-  ARTIFACT_NAME: 'binaries_docker_release'
-  RELEASE_PLATFORMS: 'linux/amd64,linux/arm64'
+  ARTIFACT_NAME: "binaries_docker_release"
+  RELEASE_PLATFORMS: "linux/amd64,linux/arm64"
   IMAGE_PUSH: ${{ github.event_name == 'push' }}
   IMAGE_IS_PROD: ${{ github.ref_type == 'tag' }}
   IMAGE_TAGS_BETA: |
@@ -34,39 +34,45 @@ env:
 
 jobs:
   build_binary:
+    strategy:
+      matrix:
+        os: [ubuntu-24.04, ubuntu-24.04-arm]
+        include:
+          - os: ubuntu-24.04
+            platform: linux/amd64
+            artifact_name: binaries_docker_release_amd64
+          - os: ubuntu-24.04-arm
+            platform: linux/arm64
+            artifact_name: binaries_docker_release_arm64
     name: Build Binaries for Docker Release
-    runs-on: ubuntu-latest
+    runs-on: ${{ matrix.os }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
       - uses: actions/setup-go@v5
         with:
-          go-version: 'stable'
+          go-version: "stable"
 
-      - name: Cache Musl
-        id: cache-musl
-        uses: actions/cache@v4
-        with:
-          path: build/musl-libs
-          key: docker-musl-libs-v2
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
 
-      - name: Download Musl Library
-        if: steps.cache-musl.outputs.cache-hit != 'true'
-        run: bash build.sh prepare docker-multiplatform
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
 
-      - name: Build go binary (dev)
-        if: env.IMAGE_IS_PROD != 'true'
-        run: bash build.sh dev docker-multiplatform
-
-      - name: Build go binary (release)
-        if: env.IMAGE_IS_PROD == 'true'
-        run: bash build.sh release docker-multiplatform
+      - name: Build binaries by Docker Buildx
+        run: |
+          mkdir -p build
+          docker buildx build \
+            --platform ${{ matrix.platform }} \
+            --target artifacts \
+            --output type=local,dest=build \
+            .
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: ${{ env.ARTIFACT_NAME }}
+          name: ${{ matrix.artifact_name }}
           overwrite: true
           path: |
             build/
@@ -98,10 +104,18 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-      - uses: actions/download-artifact@v4
+
+      - name: Download amd64 artifacts
+        uses: actions/download-artifact@v4
         with:
-          name: ${{ env.ARTIFACT_NAME }}
-          path: 'build/'
+          name: binaries_docker_release_amd64
+          path: "build/"
+
+      - name: Download arm64 artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: binaries_docker_release_arm64
+          path: "build/"
 
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v3

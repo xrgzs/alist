@@ -1,9 +1,8 @@
-version: '3.3'
 services:
   alist:
     restart: always
     volumes:
-      - '/etc/alist:/opt/alist/data'
+      - './data:/opt/alist/data'
     ports:
       - '5244:5244'
       - '5245:5245'
@@ -13,4 +12,7 @@ services:
       - UMASK=022
       - TZ=UTC
     container_name: alist
-    image: 'xhofe/alist:latest'
+    # image: 'ghcr.io/xrgzs/alist:main'
+    build:
+      context: .
+      dockerfile: Dockerfile

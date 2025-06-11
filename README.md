@@ -16,9 +16,18 @@ This fork is for development and PR, and only provides the CI version of docker 
 docker pull ghcr.io/xrgzs/alist:main
 ```
 
-If you need to run it on other platforms, please compile it yourself.
+If you need to run it on other platforms, please build it yourself.
 
-## Compile
+You can easily build and run by Docker Compose:
+
+```bash
+cd /opt
+git clone https://github.com/xrgzs/alist
+cd alist
+docker compose up -d
+```
+
+## Build
 
 1. Install `git`, `go`. And configure GCC following [C/C++ for Visual Studio Code](https://code.visualstudio.com/docs/languages/cpp).
 

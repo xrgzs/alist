@@ -1,17 +1,35 @@
-FROM alpine:edge as builder
-LABEL stage=go-builder
-WORKDIR /app/
-RUN apk add --no-cache bash curl gcc git go musl-dev
+FROM golang:1.24-alpine AS builder
+
+RUN apk add curl build-base --no-cache
+WORKDIR /app
+
+# pre-copy/cache go.mod for pre-downloading dependencies and only redownloading them in subsequent builds if they change
+ENV GO111MODULE=on
+ENV CGO_ENABLED=1
+# ENV GOPROXY=https://goproxy.cn
 COPY go.mod go.sum ./
 RUN go mod download
-COPY ./ ./
-RUN bash build.sh release docker
 
-FROM alpine:edge
+COPY . .
+RUN curl -L https://codeload.github.com/xrgzs/alist-web/tar.gz/refs/heads/web-dist -o alist-web-web-dist.tar.gz &&\
+   tar -zxvf alist-web-web-dist.tar.gz &&\
+   rm -rf public/dist &&\
+   mv -f alist-web-web-dist/dist public &&\
+   rm -rf alist-web-web-dist alist-web-web-dist.tar.gz
+
+RUN go build -v -ldflags="-w -s --extldflags '-static -fpic'" -o ./bin/alist
+
+
+FROM scratch AS artifacts
+
+ARG TARGETPLATFORM
+COPY --from=builder /app/bin/alist /alist-${TARGETPLATFORM}
+
+
+FROM alpine:latest
 
 ARG INSTALL_FFMPEG=false
 ARG INSTALL_ARIA2=false
-LABEL MAINTAINER="i@nn.ci"
 
 WORKDIR /opt/alist/
 
