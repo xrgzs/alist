@@ -1,15 +1,16 @@
 package cmd
 
 import (
+	"os"
+
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
-	"os"
 )
 
 // KillCmd represents the kill command
 var KillCmd = &cobra.Command{
 	Use:   "kill",
-	Short: "Force kill alist server process by daemon/pid file",
+	Short: "Force kill doglist server process by daemon/pid file",
 	Run: func(cmd *cobra.Command, args []string) {
 		kill()
 	},

@@ -15,7 +15,7 @@ var RootCmd = &cobra.Command{
 	Use:   "alist",
 	Short: "A file list program that supports multiple storage.",
 	Long: `A file list program that supports multiple storage,
-built with love by Xhofe and friends in Go/Solid.js.`,
+This is a fork of https://github.com/AlistGo/alist by MadDogOwner.`,
 }
 
 func Execute() {

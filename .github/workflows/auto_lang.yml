@@ -29,33 +29,33 @@ jobs:
         with:
           go-version: ${{ matrix.go-version }}
 
-      - name: Checkout alist
+      - name: Checkout dlist
         uses: actions/checkout@v4
         with:
-          path: alist
+          path: dlist
 
-      - name: Checkout alist-web
+      - name: Checkout dlist-web
         uses: actions/checkout@v4
         with:
-          repository: 'xrgzs/alist-web'
+          repository: 'xrgzs/dlist-web'
           ref: main
           persist-credentials: false
           fetch-depth: 0
-          path: alist-web
+          path: dlist-web
 
       - name: Generate lang
         run: |
-          cd alist
+          cd dlist
           go run ./main.go lang
           cd ..
 
       - name: Copy lang file
         run: |
-          cp -f ./alist/lang/*.json ./alist-web/src/lang/en/ 2>/dev/null || :
+          cp -f ./dlist/lang/*.json ./dlist-web/src/lang/en/ 2>/dev/null || :
 
       - name: Commit git
         run: |
-          cd alist-web
+          cd dlist-web
           git add .
           git config --local user.email "bot@nn.ci"
           git config --local user.name "IlaBot"
@@ -67,5 +67,5 @@ jobs:
         with:
           github_token: ${{ secrets.MY_TOKEN }}
           branch: main
-          directory: alist-web
-          repository: alist-org/alist-web
+          directory: dlist-web
+          repository: dlist-org/dlist-web

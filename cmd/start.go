@@ -16,7 +16,7 @@ import (
 // StartCmd represents the start command
 var StartCmd = &cobra.Command{
 	Use:   "start",
-	Short: "Silent start alist server with `--force-bin-dir`",
+	Short: "Silent start doglist server with `--force-bin-dir`",
 	Run: func(cmd *cobra.Command, args []string) {
 		start()
 	},
@@ -27,7 +27,7 @@ func start() {
 	if pid != -1 {
 		_, err := os.FindProcess(pid)
 		if err == nil {
-			log.Info("alist already started, pid ", pid)
+			log.Info("doglist already started, pid ", pid)
 			return
 		}
 	}

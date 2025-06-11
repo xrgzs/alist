@@ -1,8 +1,8 @@
-# Alist
+# DogList
 
 🗂️A file list program that supports multiple storages, powered by Gin and Solidjs.
 
-This is a fork of https://github.com/AlistGo/alist. And the original project is suspected to have been sold since 2025.
+This is a fork of https://github.com/AlistGo/alist by MadDogOwner. And the original project is suspected to have been sold since 2025.
 
 ## Document
 
@@ -22,8 +22,8 @@ You can easily build and run by Docker Compose:
 
 ```bash
 cd /opt
-git clone https://github.com/xrgzs/alist
-cd alist
+git clone https://github.com/xrgzs/dlist
+cd dlist
 docker compose up -d
 ```
 
@@ -31,33 +31,33 @@ docker compose up -d
 
 1. Install `git`, `go`. And configure GCC following [C/C++ for Visual Studio Code](https://code.visualstudio.com/docs/languages/cpp).
 
-2. Clone `alist` back-end source code.
+2. Clone `dlist` back-end source code.
 
    ```bash
-   git clone https://github.com/xrgzs/alist --depth=1
+   git clone https://github.com/xrgzs/dlist --depth=1
    ```
 
-3. Build `alist-web` front-end. You can use the pre-builded dist and extract it to `public/dist`:
+3. Build `dlist-web` front-end. You can use the pre-builded dist and extract it to `public/dist`:
 
    ```bash
-   curl -L https://codeload.github.com/xrgzs/alist-web/tar.gz/refs/heads/web-dist -o alist-web-web-dist.tar.gz
-   tar -zxvf alist-web-web-dist.tar.gz
+   curl -L https://codeload.github.com/xrgzs/dlist-web/tar.gz/refs/heads/web-dist -o dlist-web-web-dist.tar.gz
+   tar -zxvf dlist-web-web-dist.tar.gz
    rm -rf public/dist
-   mv -f alist-web-web-dist/dist public
-   rm -rf alist-web-web-dist alist-web-web-dist.tar.gz
+   mv -f dlist-web-web-dist/dist public
+   rm -rf dlist-web-web-dist dlist-web-web-dist.tar.gz
    ```
 
    Or build it yourself. You should install `nodejs` and `pnpm`.
 
    ```bash
-   git clone https://github.com/xrgzs/alist-web --depth=1
-   cd alist-web
+   git clone https://github.com/xrgzs/dlist-web --depth=1
+   cd dlist-web
    pnpm install
    pnpm i18n:build
    pnpm build
    cd ..
    rm -rf public/dist
-   cp -r alist-web/dist public/dist
+   cp -r dlist-web/dist public/dist
    ```
 
 4. Build binary. Do not use build.sh.
@@ -78,7 +78,7 @@ Disabled.
 
 ## License
 
-The `AList` is open-source software licensed under the AGPL-3.0 license.
+The `DogList` is open-source software licensed under the AGPL-3.0 license.
 
 ## Disclaimer
 

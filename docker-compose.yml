@@ -1,5 +1,5 @@
 services:
-  alist:
+  dlist:
     restart: always
     volumes:
       - './data:/opt/alist/data'
@@ -11,7 +11,7 @@ services:
       - PGID=0
       - UMASK=022
       - TZ=UTC
-    container_name: alist
+    container_name: dlist
     # image: 'ghcr.io/xrgzs/alist:main'
     build:
       context: .

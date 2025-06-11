@@ -13,7 +13,7 @@ import (
 // StopCmd represents the stop command
 var StopCmd = &cobra.Command{
 	Use:   "stop",
-	Short: "Stop alist server by daemon/pid file",
+	Short: "Stop doglist server by daemon/pid file",
 	Run: func(cmd *cobra.Command, args []string) {
 		stop()
 	},

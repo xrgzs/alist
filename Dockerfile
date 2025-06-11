@@ -11,11 +11,11 @@ COPY go.mod go.sum ./
 RUN go mod download
 
 COPY . .
-RUN curl -L https://codeload.github.com/xrgzs/alist-web/tar.gz/refs/heads/web-dist -o alist-web-web-dist.tar.gz &&\
-   tar -zxvf alist-web-web-dist.tar.gz &&\
+RUN curl -L https://codeload.github.com/xrgzs/dlist-web/tar.gz/refs/heads/web-dist -o dlist-web-web-dist.tar.gz &&\
+   tar -zxvf dlist-web-web-dist.tar.gz &&\
    rm -rf public/dist &&\
-   mv -f alist-web-web-dist/dist public &&\
-   rm -rf alist-web-web-dist alist-web-web-dist.tar.gz
+   mv -f dlist-web-web-dist/dist public &&\
+   rm -rf dlist-web-web-dist dlist-web-web-dist.tar.gz
 
 RUN go build -v -ldflags="-w -s --extldflags '-static -fpic'" -o ./bin/alist
 

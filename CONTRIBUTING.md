@@ -2,7 +2,7 @@
 
 ## Setup your machine
 
-`alist` is written in [Go](https://golang.org/) and [React](https://reactjs.org/).
+`dlist` is written in [Go](https://golang.org/) and [React](https://reactjs.org/).
 
 Prerequisites:
 
@@ -11,11 +11,11 @@ Prerequisites:
 - [gcc](https://gcc.gnu.org/)
 - [nodejs](https://nodejs.org/)
 
-Clone `alist` and `alist-web` anywhere:
+Clone `dlist` and `dlist-web` anywhere:
 
 ```shell
-$ git clone https://github.com/xrgzs/alist.git
-$ git clone https://github.com/xrgzs/alist-web.git
+$ git clone https://github.com/xrgzs/dlist.git
+$ git clone https://github.com/xrgzs/dlist-web.git
 ```
 You should switch to the `main` branch for development.
 
@@ -103,5 +103,5 @@ The rest of the commit message is then used for this.
 
 ## Submit a pull request
 
-Push your branch to your `alist` fork and open a pull request against the
+Push your branch to your `dlist` fork and open a pull request against the
 `main` branch.
