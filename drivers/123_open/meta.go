@@ -7,7 +7,7 @@ import (
 
 type Addition struct {
 	//  refresh_token方式的AccessToken  【对个人开发者暂未开放】
-	//RefreshToken string `json:"RefreshToken" required:"false"`
+	RefreshToken string `json:"RefreshToken" required:"false"`
 
 	//  通过 https://www.123pan.com/developer 申请
 	ClientID     string `json:"ClientID" required:"false"`

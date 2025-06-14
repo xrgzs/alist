@@ -2,13 +2,14 @@ package _123_open
 
 import (
 	"fmt"
-	"github.com/alist-org/alist/v3/internal/model"
-	"github.com/alist-org/alist/v3/pkg/utils"
 	"net/url"
 	"path"
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/alist-org/alist/v3/internal/model"
+	"github.com/alist-org/alist/v3/pkg/utils"
 )
 
 type ApiInfo struct {
@@ -138,6 +139,14 @@ type AccessTokenResp struct {
 		AccessToken string `json:"accessToken"`
 		ExpiredAt   string `json:"expiredAt"`
 	} `json:"data"`
+}
+
+type RefreshTokenResp struct {
+	AccessToken  string `json:"access_token"`
+	ExpiresIn    int    `json:"expires_in"`
+	RefreshToken string `json:"refresh_token"`
+	Scope        string `json:"scope"`
+	TokenType    string `json:"token_type"`
 }
 
 type UserInfoResp struct {

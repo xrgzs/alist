@@ -4,9 +4,10 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	log "github.com/sirupsen/logrus"
 	"net/http"
 	"strconv"
+
+	log "github.com/sirupsen/logrus"
 
 	"github.com/alist-org/alist/v3/drivers/base"
 	"github.com/go-resty/resty/v2"
@@ -16,6 +17,7 @@ var ( //不同情况下获取的AccessTokenQPS限制不同 如下模块化易于
 	Api = "https://open-api.123pan.com"
 
 	AccessToken    = InitApiInfo(Api+"/api/v1/access_token", 1)
+	RefreshToken   = InitApiInfo(Api+"/api/v1/oauth2/access_token", 1)
 	UserInfo       = InitApiInfo(Api+"/api/v1/user/info", 1)
 	FileList       = InitApiInfo(Api+"/api/v2/file/list", 2)
 	DownloadInfo   = InitApiInfo(Api+"/api/v1/file/download_info", 0)
@@ -76,18 +78,35 @@ do:
 }
 
 func (d *Open123) flushAccessToken() error {
-	var resp AccessTokenResp
-	_, err := d.Request(AccessToken, http.MethodPost, func(req *resty.Request) {
-		req.SetBody(base.Json{
-			"clientID":     d.ClientID,
-			"clientSecret": d.ClientSecret,
-		})
-	}, &resp)
-	fmt.Println(resp)
-	if err != nil {
-		return err
+	if d.Addition.ClientID != "" {
+		if d.Addition.ClientSecret != "" {
+			var resp AccessTokenResp
+			_, err := d.Request(AccessToken, http.MethodPost, func(req *resty.Request) {
+				req.SetBody(base.Json{
+					"clientID":     d.ClientID,
+					"clientSecret": d.ClientSecret,
+				})
+			}, &resp)
+			fmt.Println(resp)
+			if err != nil {
+				return err
+			}
+			d.AccessToken = resp.Data.AccessToken
+		} else if d.Addition.RefreshToken != "" {
+			var resp RefreshTokenResp
+			_, err := d.Request(RefreshToken, http.MethodPost, func(req *resty.Request) {
+				req.SetQueryParam("client_id", d.ClientID)
+				req.SetQueryParam("grant_type", "refresh_token")
+				req.SetQueryParam("refresh_token", d.Addition.RefreshToken)
+			}, &resp)
+			fmt.Println(resp)
+			if err != nil {
+				return err
+			}
+			d.AccessToken = resp.AccessToken
+			d.RefreshToken = resp.RefreshToken
+		}
 	}
-	d.AccessToken = resp.Data.AccessToken
 	return nil
 }
 
