@@ -2,12 +2,14 @@ package _123_open
 
 import (
 	"context"
+	"strconv"
+
 	"github.com/alist-org/alist/v3/internal/driver"
 	"github.com/alist-org/alist/v3/internal/errs"
 	"github.com/alist-org/alist/v3/internal/model"
+	"github.com/alist-org/alist/v3/internal/op"
 	"github.com/alist-org/alist/v3/internal/stream"
 	"github.com/alist-org/alist/v3/pkg/utils"
-	"strconv"
 )
 
 type Open123 struct {
@@ -32,6 +34,7 @@ func (d *Open123) Init(ctx context.Context) error {
 }
 
 func (d *Open123) Drop(ctx context.Context) error {
+	op.MustSaveDriverStorage(d)
 	return nil
 }
 

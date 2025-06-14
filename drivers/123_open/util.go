@@ -10,6 +10,7 @@ import (
 	log "github.com/sirupsen/logrus"
 
 	"github.com/alist-org/alist/v3/drivers/base"
+	"github.com/alist-org/alist/v3/internal/op"
 	"github.com/go-resty/resty/v2"
 )
 
@@ -105,6 +106,7 @@ func (d *Open123) flushAccessToken() error {
 			}
 			d.AccessToken = resp.AccessToken
 			d.RefreshToken = resp.RefreshToken
+			op.MustSaveDriverStorage(d)
 		}
 	}
 	return nil
